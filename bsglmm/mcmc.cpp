@@ -124,8 +124,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 	double compute_prb_DIC(double *,double *,float *,unsigned char *,unsigned char *,int);
 
 //	void tmp(float *,float *);
-
-//	fresid = fopen("resid.dat","w");
+	fresid = fopen("resid.dat","w");
 	
  	NSIZE = (NROW+2)*(NCOL+2)*(NDEPTH+2);
 	int RSIZE = NROW*NCOL*NDEPTH;
@@ -175,22 +174,22 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 		CUDA_CALL( cudaMalloc((void **)&deviceZ,TOTVOX*NSUBS*sizeof(float)) );
 		CUDA_CALL( cudaMemset(deviceZ,0,TOTVOX*NSUBS*sizeof(float)) );
 	//	CUDA_CALL( cudaHostAlloc((void **)&Phi, TOTVOX*NSUBS*sizeof(float),cudaHostAllocDefault) );
-		CUDA_CALL( cudaMalloc((void **)&devicePhi,TOTVOX*NSUBS*sizeof(float)) );
-		CUDA_CALL( cudaMemset(devicePhi,1,TOTVOX*NSUBS*sizeof(float)) );
-		CUDA_CALL( cudaMalloc((void **)&deviceResid,TOTVOX*NSUBS*sizeof(unsigned int)) );
-		CUDA_CALL( cudaMemset(deviceResid,0,TOTVOX*NSUBS*sizeof(unsigned int)) );
+//		CUDA_CALL( cudaMalloc((void **)&devicePhi,TOTVOX*NSUBS*sizeof(float)) );
+//		CUDA_CALL( cudaMemset(devicePhi,1,TOTVOX*NSUBS*sizeof(float)) );
+//		CUDA_CALL( cudaMalloc((void **)&deviceResid,TOTVOX*NSUBS*sizeof(unsigned int)) );
+//		CUDA_CALL( cudaMemset(deviceResid,0,TOTVOX*NSUBS*sizeof(unsigned int)) );
 	}
 //	else
 //		Z = (float *)calloc(TOTVOX*NSUBS,sizeof(float));
 
-	if (!RESTART) {
+/*	if (!RESTART) {
 		initializeZ(Z,data,msk,seed);
-		initializePhi(Phi,data,msk,t_df,seed);
+//		initializePhi(Phi,data,msk,t_df,seed);
 		if (GPU) {
 			CUDA_CALL( cudaMemcpy(deviceZ,Z,NSUBS*TOTVOX*sizeof(float),cudaMemcpyHostToDevice) );	
-			CUDA_CALL( cudaMemcpy(devicePhi,Phi,NSUBS*TOTVOX*sizeof(float),cudaMemcpyHostToDevice) );	
+//			CUDA_CALL( cudaMemcpy(devicePhi,Phi,NSUBS*TOTVOX*sizeof(float),cudaMemcpyHostToDevice) );	
 		}
-	}	
+	}	*/
 	alpha = (float *)calloc(TOTVOX*NSUBTYPES,sizeof(float));
 	if (GPU) {
 //		cutilSafeCall(cudaMemcpy(deviceZ,Z,NSUBS*TOTVOX*sizeof(float),cudaMemcpyHostToDevice));
@@ -253,7 +252,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 //		prb = (float *)calloc(NSUBTYPES*TOTVOX,sizeof(float));
 //	}
 	
-	if (RESTART) {
+/*	if (RESTART) {
 		restart_iter(&beta,fixMean,alphaMean,alphaPrec,SpatCoefMean,SpatCoefPrec,spatCoef,alpha,Z,Phi);
 		printf("***RESTART VALUES***\n\n");
 		double *V = (double *)calloc(NCOVAR*NCOVAR,sizeof(double));
@@ -264,52 +263,39 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 		cholesky_invert(NCOVAR, V);
 		printf("iter = %d\t",iter);
 		printf("%f \n",beta);
-//		for (int ii=0;ii<NCOV_FIX;ii++)
-//			printf("%f \n",fixMean[ii]);
-//		for (int ii=0;ii<NSUBTYPES;ii++)
-//			printf("\t %10.6lf %10.6f\n",alphaMean[ii],V[ii+ii*NCOVAR]);
-//		printf("\n");
-//		for (int ii=NSUBTYPES;ii<NCOVAR;ii++)
-//			printf("\t %10.6lf %10.6f\n",alphaMean[ii],V[ii+ii*NCOVAR]);
-//		printf("\n");
-//		for (int ii=0;ii<NCOVAR;ii++) {
-//			for (int jj=0;jj<=ii;jj++)
-//				printf("%6.3lf ",V[jj + ii*NCOVAR]/sqrt(V[ii + ii*NCOVAR]*V[jj + jj*NCOVAR]));
-//			printf("\n");
-//		}
+		for (int ii=0;ii<NCOV_FIX;ii++)
+			printf("%f \n",fixMean[ii]);
+		for (int ii=0;ii<NSUBTYPES;ii++)
+			printf("\t %10.6lf %10.6f\n",alphaMean[ii],V[ii+ii*NCOVAR]);
+		printf("\n");
+		for (int ii=NSUBTYPES;ii<NCOVAR;ii++)
+			printf("\t %10.6lf %10.6f\n",alphaMean[ii],V[ii+ii*NCOVAR]);
+		printf("\n");
+		for (int ii=0;ii<NCOVAR;ii++) {
+			for (int jj=0;jj<=ii;jj++)
+				printf("%6.3lf ",V[jj + ii*NCOVAR]/sqrt(V[ii + ii*NCOVAR]*V[jj + jj*NCOVAR]));
+			printf("\n");
+		}
 		printf("\n");
 		fflush(NULL);
 		free(V);
 
 
-/*		printf("%f \n",beta);
-		for (int ii=0;ii<NSUBTYPES;ii++)
-			printf("\t %10.6lf %10.6lf\t %10.6lf %10.6lf\n",alphaMean[ii],1./alphaPrec[ii],SpatCoefMean[ii],1./SpatCoefPrec[ii]);
-		for (int ii=NSUBTYPES;ii<NCOVAR;ii++)
-			printf("\t \t \t \t %10.6lf %10.6lf\n",alphaMean[ii],1./SpatCoefPrec[ii]);
-		printf("\n");
-		fflush(NULL);*/
-//		out  = fopen("parms.dat","a");
-//		out2  = fopen("select_parms.dat","w");
-	}
-	else {
-//		out = fopen("parms.dat","w");	
-//		out2 = fopen("select_parms.dat","w");	
-	}
-//	fBF = fopen("fBF.dat","w");
+		out  = fopen("parms.dat","a");
+		out2  = fopen("select_parms.dat","w");
+	}*/
+	//else {
+		out = fopen("parms.dat","w");	
+		out2 = fopen("select_parms.dat","w");	
+	//}
+	fBF = fopen("fBF.dat","w");
 
 	cudaEvent_t start, stop;
 	float time;
 	CUDA_CALL( cudaEventCreate(&start) );
 	CUDA_CALL( cudaEventCreate(&stop) );
 //cudaEventRecord(start,0);
-
-	if ((MAXITER-BURNIN)<10000){
-		SAVE_ITER = MAXITER-BURNIN;
-	}
-	else {
-		SAVE_ITER = (MAXITER - BURNIN)/10000;
-	}
+	SAVE_ITER = (MAXITER - BURNIN)/10000;
 	PRNtITER = 100;
 
 	for (iter=0;iter<=MAXITER;iter++) {//printf("iter = %d\n",iter);fflush(NULL);
@@ -320,11 +306,12 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 				CUDA_CALL( cudaEventRecord(start, 0) ); 
 			//for (int tj=0;tj<10;tj++)
 			updateZGPU(data,beta,seed);
+
 			if (!(iter%PRNtITER)) {
 				CUDA_CALL( cudaEventRecord(stop, 0) );
 				CUDA_CALL( cudaEventSynchronize(stop) );
 				CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
-//				printf ("Time to updateZGPU kernel: %f ms\n", time);
+				printf ("Time to updateZGPU kernel: %f ms\n", time);
 			}
 			
 			if (MODEL != 1) {
@@ -337,7 +324,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 					CUDA_CALL( cudaEventRecord(stop, 0) );
 					CUDA_CALL( cudaEventSynchronize(stop) );
 					CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
-//					printf ("Time to updatePhiGPU kernel: %f ms\n", time);
+					printf ("Time to updatePhiGPU kernel: %f ms\n", time);
 				}
 			}
 			
@@ -349,7 +336,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 				CUDA_CALL( cudaEventRecord(stop, 0) );
 				CUDA_CALL( cudaEventSynchronize(stop) );
 				CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
-//				printf ("Time for the updateBetaGPU kernel: %f ms\n", time);
+				printf ("Time for the updateBetaGPU kernel: %f ms\n", time);
 			}
 
 			if (!(iter%PRNtITER))
@@ -360,7 +347,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 				CUDA_CALL( cudaEventRecord(stop, 0) );
 				CUDA_CALL( cudaEventSynchronize(stop) );
 				CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
-//				printf ("Time to updateSpatCoefGPU kernel: %f ms\n", time);
+				printf ("Time to updateSpatCoefGPU kernel: %f ms\n", time);
 			}
 
 			if (!(iter%PRNtITER))
@@ -372,7 +359,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 				CUDA_CALL( cudaEventRecord(stop, 0) );
 				CUDA_CALL( cudaEventSynchronize(stop) );
 				CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
-//				printf ("Time to updateSpatCoefPrecGPU kernel: %f ms\n\n", time);
+				printf ("Time to updateSpatCoefPrecGPU kernel: %f ms\n\n", time);
 			}
 			//CUDA_CALL( cudaEventRecord(start, 0) );
 			//for (int tj=0;tj<10;tj++)
@@ -404,7 +391,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 				CUDA_CALL( cudaEventRecord(stop, 0) );
 				CUDA_CALL( cudaEventSynchronize(stop) );
 				CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
-//				printf ("Time for the updateZCPU kernel: %f ms\n", time);
+				printf ("Time for the updateZCPU kernel: %f ms\n", time);
 			}
 		//	CUDA_CALL( cudaEventRecord(start, 0) );	
 		//	for (int tj=0;tj<10;tj++)
@@ -422,7 +409,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 				CUDA_CALL( cudaEventRecord(stop, 0) );
 				CUDA_CALL( cudaEventSynchronize(stop) );
 				CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
-//				printf ("Time for the updateSpatCoefCPU kernel: %f ms\n", time);
+				printf ("Time for the updateSpatCoefCPU kernel: %f ms\n", time);
 			}
 			if (!(iter%PRNtITER))
 				CUDA_CALL( cudaEventRecord(start, 0) );
@@ -432,7 +419,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 				CUDA_CALL( cudaEventRecord(stop, 0) );
 				CUDA_CALL( cudaEventSynchronize(stop) );
 				CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
-//				printf ("Time for the updateSpatCoefPrecCPU kernel: %f ms\n\n", time);
+				printf ("Time for the updateSpatCoefPrecCPU kernel: %f ms\n\n", time);
 			}
 	
 		//	CUDA_CALL( cudaEventRecord(start, 0) );
@@ -556,21 +543,21 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 			cholesky_decomp(V, NCOVAR);
 			cholesky_invert(NCOVAR, V);
 			printf("iter = %d\t",iter);
-//			printf("%f \n",beta);
-//			for (int ii=0;ii<NCOV_FIX;ii++)
-//				printf("%f \n",fixMean[ii]);
-//			for (int ii=0;ii<NSUBTYPES;ii++)
-//				printf("\t %10.6lf %10.6f\n",alphaMean[ii]/logit_factor,sqrt(V[ii+ii*NCOVAR])/logit_factor);
-//			printf("\n");
-//			for (int ii=NSUBTYPES;ii<NCOVAR;ii++)
-//				printf("\t %10.6lf %10.6f\n",alphaMean[ii]/logit_factor,sqrt(V[ii+ii*NCOVAR])/logit_factor);
-//			printf("\n");
-//			for (int ii=0;ii<NCOVAR;ii++) {
-//				for (int jj=0;jj<=ii;jj++)
+			printf("%f \n",beta);
+			for (int ii=0;ii<NCOV_FIX;ii++)
+				printf("%f \n",fixMean[ii]);
+			for (int ii=0;ii<NSUBTYPES;ii++)
+				printf("\t %10.6lf %10.6f\n",alphaMean[ii]/logit_factor,sqrt(V[ii+ii*NCOVAR])/logit_factor);
+			printf("\n");
+			for (int ii=NSUBTYPES;ii<NCOVAR;ii++)
+				printf("\t %10.6lf %10.6f\n",alphaMean[ii]/logit_factor,sqrt(V[ii+ii*NCOVAR])/logit_factor);
+			printf("\n");
+			for (int ii=0;ii<NCOVAR;ii++) {
+				for (int jj=0;jj<=ii;jj++)
 //					printf("%6.3lf ",sqrt(V[jj + ii*NCOVAR]));
-//					printf("%6.3lf ",V[jj + ii*NCOVAR]/sqrt(V[ii + ii*NCOVAR]*V[jj + jj*NCOVAR]));
-//				printf("\n");
-//			}
+					printf("%6.3lf ",V[jj + ii*NCOVAR]/sqrt(V[ii + ii*NCOVAR]*V[jj + jj*NCOVAR]));
+				printf("\n");
+			}
 			printf("\n");
 			fflush(NULL);
 			free(V);
@@ -591,7 +578,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 					cudaEventRecord(stop, 0);
 					cudaEventSynchronize(stop);
 					cudaEventElapsedTime(&time, start, stop);
-//					printf ("Time to compute_predictGPU: %f ms\n", time);
+					printf ("Time to compute_predictGPU: %f ms\n", time);
 				}
 
 				if (!(iter%PRNtITER))
@@ -603,7 +590,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 					cudaEventRecord(stop, 0);
 					cudaEventSynchronize(stop);
 					cudaEventElapsedTime(&time, start, stop);
-//					printf ("Time to compute_prbGPU: %f ms\n\n", time);
+					printf ("Time to compute_prbGPU: %f ms\n\n", time);
 				}
 			}
 			else {
@@ -614,7 +601,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 					cudaEventRecord(stop, 0);
 					cudaEventSynchronize(stop);
 					cudaEventElapsedTime(&time, start, stop);
-//					printf ("Time to compute_prbGPU: %f ms\n\n", time);
+					printf ("Time to compute_prbGPU: %f ms\n\n", time);
 				}
 			}
 			
@@ -658,23 +645,22 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 //			CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
 //			printf ("Time for the updateZGPU kernel: %f sec.\n", time/1000.0);
 
-//	fclose(fBF);
+	fclose(fBF);
 	
-	unsigned int *Resid;
-	double *ResidMap;
-	Resid = (unsigned int *)calloc(NSUBS*TOTVOX,sizeof(unsigned int)); 	
-	ResidMap = (double *)calloc(RSIZE,sizeof(double)); 	
+//	unsigned int *Resid;
+//	double *ResidMap;
+//	Resid = (unsigned int *)calloc(NSUBS*TOTVOX,sizeof(unsigned int)); 	
+//	ResidMap = (double *)calloc(RSIZE,sizeof(double)); 	
 	if (GPU) {
 		CUDA_CALL( cudaMemcpy(Z,deviceZ,NSUBS*TOTVOX*sizeof(float),cudaMemcpyDeviceToHost) );
-		CUDA_CALL( cudaMemcpy(Phi,devicePhi,NSUBS*TOTVOX*sizeof(float),cudaMemcpyDeviceToHost) );
+//		CUDA_CALL( cudaMemcpy(Phi,devicePhi,NSUBS*TOTVOX*sizeof(float),cudaMemcpyDeviceToHost) );
 //		cudaMemcpy(alpha,deviceAlpha,NSUBTYPES*TOTVOX*sizeof(float),cudaMemcpyDeviceToHost);
 		CUDA_CALL( cudaMemcpy(spatCoef,deviceSpatCoef,NCOVAR*TOTVOXp*sizeof(float),cudaMemcpyDeviceToHost) );
 		
-		CUDA_CALL( cudaMemcpy(Resid,deviceResid,NSUBS*TOTVOX*sizeof(unsigned int),cudaMemcpyDeviceToHost) );
+//		CUDA_CALL( cudaMemcpy(Resid,deviceResid,NSUBS*TOTVOX*sizeof(unsigned int),cudaMemcpyDeviceToHost) );
 	}
 //	save_iter(beta,fixMean,alphaMean,alphaPrec,SpatCoefMean,SpatCoefPrec,spatCoef,alpha,Z,Phi);
-
-	for (int isub=0;isub<NSUBS;isub++) {
+/*	for (int isub=0;isub<NSUBS;isub++) {
 		for (int k=1;k<NDEPTH+1;k++) {
 			for (int j=1;j<NCOL+1;j++) {
 				for (int i=1;i<NROW+1;i++) {
@@ -686,7 +672,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 					if (msk[IDX]) {
 						double tmp = (double)Resid[isub*TOTVOX+hostIdx[IDX]]/(double)(MAXITER-BURNIN);
 						if (tmp > 0.05) {
-//							fprintf(fresid,"%d %d %d %d %lf\n",isub,i,j,k,tmp);
+							fprintf(fresid,"%d %d %d %d %lf\n",isub,i,j,k,tmp);
 							ResidMap[IDX2]++;
 						}
 					}
@@ -695,21 +681,21 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 		}
 	}
 	free(Resid);
-//	fclose(out);
-//	fclose(out2);
-//	fclose(fresid);
+	fclose(out);
+	fclose(out2);
+	fclose(fresid);*/
 
 	char *RR = (char *)calloc(500,sizeof(char));
 	S = (char *)calloc(100,sizeof(char));
 //	S = strcpy(S,"ResidMap.nii");
 //	int rtn = write_nifti_file(NROW,NCOL,NDEPTH,1,S,S,ResidMap);
-	free(ResidMap);
-
+//	free(ResidMap);
+	int rtn;
 //	RR = strcpy(RR,"gzip -f ");
 //	RR = strcat(RR,(const char *)S);
 //	rtn = system(RR);
-	
-//	printf("TOTSAV = %d\n",TOTSAV);
+
+	printf("TOTSAV = %d\n",TOTSAV);
 
 	out = fopen("Qhat.dat","w");	
 	for (int isub=0;isub<NSUBS;isub++) {
@@ -822,11 +808,11 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 
 //	fclose(fWM);
 	S = strcpy(S,"bWM.nii");
-//	rtn = write_nifti_file(NROW,NCOL,NDEPTH,1,S,S,MWM);
+	rtn = write_nifti_file(NROW,NCOL,NDEPTH,1,S,S,MWM);
 
 	RR = strcpy(RR,"gzip -f ");
 	RR = strcat(RR,(const char *)S);
-//	rtn = system(RR);
+	rtn = system(RR);
 
 /*	for (int ii=0;ii<NSUBTYPES;ii++) {	
 		for (int k=0;k<NDEPTH;k++) {
@@ -923,7 +909,6 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 		free(standCoef);
 	}
 	
-	
 	for (int ii=0;ii<NSUBTYPES;ii++) {	
 		for (int k=0;k<NDEPTH;k++) {
 			for (int j=0;j<NCOL;j++) {
@@ -954,17 +939,16 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 		rtn = write_nifti_file(NROW,NCOL,NDEPTH,1,S,S,&Malpha[ii*RSIZE]);*/
 	}
 
-
-//	FILE *fdic;
-//	fdic = fopen("DIC.dat","w");
+	FILE *fdic;
+	fdic = fopen("DIC.dat","w");
 	ED /= (double)TOTSAV;
 	ED *= -2.0;
 	double DE = compute_prb_DIC(MCov,MWM,covar,data,msk,RSIZE);
 	double PD = ED - DE;
-//	printf("DE = %lf ED = %lf PD = %lf DIC = %lf\n",DE,ED,PD,DE + 2*PD);
-//	fprintf(fdic,"DE = %lf ED = %lf PD = %lf DIC = %lf\n",DE,ED,PD,DE + 2*PD);
+	printf("DE = %lf ED = %lf PD = %lf DIC = %lf\n",DE,ED,PD,DE + 2*PD);
+	fprintf(fdic,"DE = %lf ED = %lf PD = %lf DIC = %lf\n",DE,ED,PD,DE + 2*PD);
 	
-//	fclose(fdic);
+	fclose(fdic);
 	free(S);
 	free(RR);
 	free(char_ii);
@@ -983,7 +967,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 		CUDA_CALL( cudaFree(deviceZ) );
 		CUDA_CALL( cudaFree(devicePrb) );
 		CUDA_CALL( cudaFree(devicePredict) );
-		CUDA_CALL( cudaFree(devicePhi) );
+//		CUDA_CALL( cudaFree(devicePhi) );
 	}
 	free(prb);
 	free(predict);		
