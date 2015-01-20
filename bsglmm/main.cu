@@ -133,11 +133,6 @@ int main (int argc, char * const argv[]) {
 	seed = (unsigned long *)calloc(3,sizeof(unsigned long));
 	fseed = fopen("seed.dat","r");
 	if (fseed == NULL){
-<<<<<<< HEAD
-		printf("seed.dat (with 3 integers) does not exist\n");
-		exit(1);
-	}	
-=======
 		printf("No seed.dat found; using [ 1 2 3 ]\n");
 		seed[0]=1L;seed[1]=2L;seed[2]=2L;
 	} else {
@@ -149,7 +144,6 @@ int main (int argc, char * const argv[]) {
 		  exit(1);
 	}
 
->>>>>>> 3b77a383744d612b5822d530c68c813f7f08a862
 	
 	logit_factor = 1.0f;
 	t_df = 1000.0f;
