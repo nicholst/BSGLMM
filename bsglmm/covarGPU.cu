@@ -213,7 +213,7 @@ __global__ void Spat_Coef_for_Spat_Covar(float *covar,float *alpha,float *Z,floa
 	float var[20*20];
 	float tmp=0;
 	float tmp2[20];
-//	float alph[20];
+	float alph[20];
 	
 	int voxel=0,IDX=0,IDXSC=0;
 	int current_covar=0;
@@ -302,8 +302,8 @@ __global__ void Spat_Coef_Probit(float *covar,float *covF,float *fix,float *alph
 	float var[20*20];
 	float tmp=0;
 	float tmp2[20];
-//	float alph[20];
-//	float fixed[20];
+	float alph[20];
+	float fixed[20];
 	
 	int voxel=0,IDX=0,IDXSC=0;
 	float bwhtmat=0;
@@ -407,7 +407,7 @@ __global__ void Spat_Coef(float *covar,float *covF,float *fix,float *alpha,float
 	float var[20*20];
 	float tmp=0;
 	float tmp2[20];
-//	float alph[20];
+	float alph[20];
 	float fixed[20];
 	
 	int voxel=0,IDX=0,IDXSC=0;
@@ -1018,7 +1018,7 @@ void updateSpatCoefPrecGPU_Laplace(float *SpatCoefPrec,unsigned long *seed)
 	double *var;
 	float *dbeta;
 	double betaSqr = 2.0;//0.2;
-//	double tau;
+	double tau;
 
 	var = (double *)calloc(NCOVAR*NCOVAR,sizeof(double));
 	hbeta = (float*)calloc(BPG,sizeof(float));
@@ -1372,7 +1372,7 @@ __global__ void Z_GPU1(float *dZ,unsigned char *data,float *covar,float *covarF,
 	int localsize = blockDim.x;  
 	int localid = threadIdx.x; 
 	
-	float mean[300];
+	float mean[2000];
 	float tmp=0;
 	float SC[20];
 	int voxel=0,IDX=0,IDXSC=0;
@@ -1421,7 +1421,7 @@ __global__ void Z_GPU1(float *dZ,unsigned char *data,float *covar,float *covarF,
 			int itmp = (int)data[isub*TOTVOX+IDX];
 			dZ[isub*TOTVOX+IDX] = truncNormGPU(mean[isub],1.0f,lim[itmp].x,lim[itmp].y,&localState);
 //			dZ[isub*TOTVOX+IDX] = ((float)data[isub*TOTVOX+IDX]-1.0f)*truncNormGPU(fabsf(mean[isub]),1.0f,0.0f,500.0f,&localState);
-			dR[isub*TOTVOX+IDX] += (fabsf(dZ[isub*TOTVOX+IDX] - mean[isub]) > 4.0f);
+//			dR[isub*TOTVOX+IDX] += (fabsf(dZ[isub*TOTVOX+IDX] - mean[isub]) > 4.0f);
 		}
 		state[idx] = localState;
 	}
@@ -1435,7 +1435,7 @@ __global__ void Z_GPU2(float *dZ,unsigned char *data,float *covar,float *covarF,
 	int localid = threadIdx.x; 
 	
 	float a = alp;
-	float mean[300];
+	float mean[2000];
 	float tmp=0;
 	float SC[20];
 	int voxel=0,IDX=0,IDXSC=0;
@@ -1489,7 +1489,7 @@ __global__ void Z_GPU2(float *dZ,unsigned char *data,float *covar,float *covarF,
 			int itmp = (int)data[isub*TOTVOX+IDX];
 			Z = truncNormGPU(M,P,lim[itmp].x,lim[itmp].y,&localState);
 //			Z = ((float)data[isub*TOTVOX+IDX]-1.0f)*truncNormGPU(fabsf(M),rsqrtf(P),0.0f,500.0f,&localState);
-			dR[isub*TOTVOX+IDX] += (fabsf(Z - M) > 4.0f);
+//			dR[isub*TOTVOX+IDX] += (fabsf(Z - M) > 4.0f);
 			
 			b = Z - M;
 			b = (df + b*b)/2.0f;
@@ -1511,7 +1511,7 @@ __global__ void Phi_GPU(float *dZ,unsigned char *data,float *covar,float *covarF
 	int localid = threadIdx.x; 
 	
 	const float a = alp;
-	float beta2[300];
+	float beta2[2000];
 	float tmp=0;
 	float SC[20];
 	int voxel=0,IDX=0,IDXSC=0;

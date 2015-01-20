@@ -27,8 +27,8 @@ float *covar;
 int NSUBTYPES;
 int NCOVAR;
 int NCOV_FIX = 0;
-int MAXITER = 1000000;
-int BURNIN  = 500000;
+int MAXITER = 100000;
+int BURNIN  =  50000;
 int RESTART;
 float *deviceCovar;
 float *hostCovar;
@@ -69,12 +69,31 @@ int main (int argc, char * const argv[]) {
 	void write_empir_prb(unsigned char *,float *,unsigned char *,int *);
 	unsigned char *get_WM_mask(float *,unsigned char *);
 	
-	if (argc !=5) 
-		exit(0);
+	if (argc !=5 && argc !=7) {
+	   printf("%s: Usage\n",argv[0]);
+	   printf("%s  NTypes  NCov  GPU  Design  [MaxIter BurnIn]  \n",argv[0]);
+	   printf("  NTypes  - Number of groups\n",argv[0]);
+	   printf("  NCov    - Number of covariates (count must include groups)\n",argv[0]);
+	   printf("  GPU     - 1 use GPU; 0 use CPU\n",argv[0]);
+	   printf("  Design  - Text file, tab or space separated data file\n",argv[0]);
+	   printf("  MaxIter - Number of iterations (defaults to 1,000,000)\n",argv[0]);
+	   printf("  BurnIn  - Number of burn-in iterations (defaults to 500,000)\n",argv[0]);
+	   printf("For documentation see: http://warwick.ac.uk/tenichols/BSGLMM\n",argv[0]);
+		exit(1);
+		}
 
 	NSUBTYPES = atoi(argv[1]);
 	NCOVAR = atoi(argv[2]);
 	GPU = atoi(argv[3]);
+	if (argc >5)  {
+		MAXITER = atoi(argv[5]);
+		BURNIN  = atoi(argv[6]);
+		if (MAXITER<1000) 
+		   printf("WARNING: Silly-small number of iterations used; recommend abort and use more\n");
+		if (BURNIN>MAXITER)
+		   printf("WARNING: Burn-in exceeds MAXITER, no results will be saved\n");
+	}	
+
 	
 	RESTART = 0;
 	int deviceCount = 0;
@@ -113,6 +132,18 @@ int main (int argc, char * const argv[]) {
 	
 	seed = (unsigned long *)calloc(3,sizeof(unsigned long));
 	fseed = fopen("seed.dat","r");
+	if (fseed == NULL){
+		printf("No seed.dat found; using [ 1 2 3 ]\n");
+		seed[0]=1L;seed[1]=2L;seed[2]=2L;
+	} else {
+		rtn = fscanf(fseed,"%lu %lu %lu\n",&(seed[0]),&(seed[1]),&(seed[2]));
+		if (rtn==0)
+		  exit(1);
+		rtn = fclose(fseed);
+		if (rtn != 0)
+		  exit(1);
+	}
+
 	
 	logit_factor = 1.0f;
 	t_df = 1000.0f;
@@ -124,13 +155,6 @@ int main (int argc, char * const argv[]) {
 		t_df = 3.0f;
 
 	
-	rtn = fscanf(fseed,"%lu %lu %lu\n",&(seed[0]),&(seed[1]),&(seed[2]));
-	if (rtn==0)
-		exit(0);
-	rtn = fclose(fseed);
-	if (rtn != 0)
-		exit(0);
-
 		
 //	msk  = read_nifti1_mask("./images/avg152T1_highres_brain.hdr",
 //				"./images/avg152T1_highres_brain.img");
@@ -250,6 +274,9 @@ int main (int argc, char * const argv[]) {
 
 	}
 	else {
+	     fprintf(stderr,"WARNING!!!\n");
+	     fprintf(stderr,"WARNING!!! CPU code not tested!  Results might not be right!\n");
+	     fprintf(stderr,"WARNING!!!\n");
 		for (int i=0;i<2;i++) {
 			INDX[i].hostVox = (int *)calloc(INDX[i].hostN,sizeof(int));
 		}
