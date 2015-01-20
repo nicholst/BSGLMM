@@ -274,6 +274,9 @@ int main (int argc, char * const argv[]) {
 
 	}
 	else {
+	     fprintf(stderr,"WARNING!!!\n")
+	     fprintf(stderr,"WARNING!!! CPU code not tested!  Results might not be right!\n")
+	     fprintf(stderr,"WARNING!!!\n")
 		for (int i=0;i<2;i++) {
 			INDX[i].hostVox = (int *)calloc(INDX[i].hostN,sizeof(int));
 		}
