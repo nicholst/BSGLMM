@@ -296,10 +296,12 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 	CUDA_CALL( cudaEventCreate(&stop) );
 //cudaEventRecord(start,0);
     
-	SAVE_ITER = (MAXITER - BURNIN)/10000;
-	if (SAVE_ITER==0)
-        	SAVE_ITER = 100;
-
+	if ((MAXITER-BURNIN)<10000){
+	  SAVE_ITER = MAXITER-BURNIN;
+	}
+	else {
+	  SAVE_ITER = (MAXITER - BURNIN)/10000;
+	}
 	PRNtITER = 100;
 
 	for (iter=0;iter<=MAXITER;iter++) {//printf("iter = %d\n",iter);fflush(NULL);
