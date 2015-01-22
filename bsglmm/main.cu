@@ -17,7 +17,7 @@ int NCOL;
 int NDEPTH;
 int TOTVOX;
 int TOTVOXp;  // total voxels plus boundary
-int UPDATE_WM;
+int UPDATE_WM=1;
 
 int *hostIdx;
 int *deviceIdx;
@@ -79,7 +79,7 @@ int main (int argc, char * const argv[]) {
 	   printf("  Design  - Text file, tab or space separated data file\n");
 	   printf("  MaxIter - Number of iterations (defaults to 1,000,000)\n");
 	   printf("  BurnIn  - Number of burn-in iterations (defaults to 500,000)\n");
-	   printf("  UseWM   - 1 use WM (images/avg152T1_white.{img,hdr} image; 0 don't\n");
+	   printf("  UseWM   - 1 use WM (images/avg152T1_white.{img,hdr} image (default); 0 don't\n");
 	   printf("For documentation see: http://warwick.ac.uk/tenichols/BSGLMM\n");
 		exit(1);
 		}
