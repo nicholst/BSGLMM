@@ -1176,7 +1176,8 @@ void initializeAlpha(unsigned char *msk,float *alphaMean,float *alphaPrec,float 
 			}
 			fclose(in);
 		}
-		else {*/ //			FILE *fout;
+		else {*/ 
+//			FILE *fout;
 //			fout = fopen("Af.dat","w");
 			for (int k=1;k<NDEPTH+1;k++) {
 				for (int j=1;j<NCOL+1;j++) {
