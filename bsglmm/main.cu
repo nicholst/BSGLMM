@@ -72,16 +72,15 @@ int main (int argc, char * const argv[]) {
 	unsigned char *get_WM_mask(float *,unsigned char *);
 	
 	if (argc !=5 && argc !=7 && argc !=8) {
-	   printf("%s: Usage\n",argv[0]);
-	   printf("%s  NTypes  NCov  GPU  Design  [MaxIter BurnIn]  \n",argv[0]);
-	   printf("  NTypes  - Number of groups\n",argv[0]);
-	   printf("  NCov    - Number of covariates (count must include groups)\n",argv[0]);
-	   printf("  GPU     - 1 use GPU; 0 use CPU (CPU not tested! Use with caution)\n",argv[0]);
-	   printf("  Design  - Text file, tab or space separated data file\n",argv[0]);
-	   printf("  MaxIter - Number of iterations (defaults to 1,000,000)\n",argv[0]);
-	   printf("  BurnIn  - Number of burn-in iterations (defaults to 500,000)\n",argv[0]);
-	   printf("  UseWM   - 1 use WM (images/avg152T1_white.{img,hdr} image; 0 don't\n",argv[0]);
-	   printf("For documentation see: http://warwick.ac.uk/tenichols/BSGLMM\n",argv[0]);
+	   printf("Usage: %s  NTypes  NCov  GPU  Design  [MaxIter BurnIn]  \n",argv[0]);
+	   printf("  NTypes  - Number of groups\n");
+	   printf("  NCov    - Number of covariates (count must include groups)\n");
+	   printf("  GPU     - 1 use GPU; 0 use CPU (CPU not tested! Use with caution)\n");
+	   printf("  Design  - Text file, tab or space separated data file\n");
+	   printf("  MaxIter - Number of iterations (defaults to 1,000,000)\n");
+	   printf("  BurnIn  - Number of burn-in iterations (defaults to 500,000)\n");
+	   printf("  UseWM   - 1 use WM (images/avg152T1_white.{img,hdr} image; 0 don't\n");
+	   printf("For documentation see: http://warwick.ac.uk/tenichols/BSGLMM\n");
 		exit(1);
 		}
 
