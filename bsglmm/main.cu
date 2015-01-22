@@ -17,6 +17,7 @@ int NCOL;
 int NDEPTH;
 int TOTVOX;
 int TOTVOXp;  // total voxels plus boundary
+int UPDATE_WM;
 
 int *hostIdx;
 int *deviceIdx;
@@ -39,6 +40,7 @@ float *XXprime_Fix;
 float logit_factor; 
 float t_df;
 int MODEL = 1;    // logistic = 0; Probit = 1, t = 2;
+
 //float *deviceChiSqHist;
 //int   ChiSqHist_N;
 
@@ -69,15 +71,16 @@ int main (int argc, char * const argv[]) {
 	void write_empir_prb(unsigned char *,float *,unsigned char *,int *);
 	unsigned char *get_WM_mask(float *,unsigned char *);
 	
-	if (argc !=5 && argc !=7) {
+	if (argc !=5 && argc !=7 && argc !=8) {
 	   printf("%s: Usage\n",argv[0]);
 	   printf("%s  NTypes  NCov  GPU  Design  [MaxIter BurnIn]  \n",argv[0]);
 	   printf("  NTypes  - Number of groups\n",argv[0]);
 	   printf("  NCov    - Number of covariates (count must include groups)\n",argv[0]);
-	   printf("  GPU     - 1 use GPU; 0 use CPU\n",argv[0]);
+	   printf("  GPU     - 1 use GPU; 0 use CPU (CPU not tested! Use with caution)\n",argv[0]);
 	   printf("  Design  - Text file, tab or space separated data file\n",argv[0]);
 	   printf("  MaxIter - Number of iterations (defaults to 1,000,000)\n",argv[0]);
 	   printf("  BurnIn  - Number of burn-in iterations (defaults to 500,000)\n",argv[0]);
+	   printf("  UseWM   - 1 use WM (images/avg152T1_white.{img,hdr} image; 0 don't\n",argv[0]);
 	   printf("For documentation see: http://warwick.ac.uk/tenichols/BSGLMM\n",argv[0]);
 		exit(1);
 		}
@@ -92,6 +95,9 @@ int main (int argc, char * const argv[]) {
 		   printf("WARNING: Silly-small number of iterations used; recommend abort and use more\n");
 		if (BURNIN>MAXITER)
 		   printf("WARNING: Burn-in exceeds MAXITER, no results will be saved\n");
+		if (argc >7)  {
+		  UPDATE_WM = atoi(argv[7]);
+		}
 	}	
 
 	

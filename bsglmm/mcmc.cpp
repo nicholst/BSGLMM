@@ -40,6 +40,8 @@ extern int NSUBTYPES;
 extern int NCOVAR;
 extern int NCOV_FIX;
 extern int RESTART;
+extern int UPDATE_WM;
+
 extern int *hostIdx;
 extern int *deviceIdx;
 extern int *hostIdxSC;
@@ -337,7 +339,8 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 			if (!(iter%PRNtITER))
 				CUDA_CALL( cudaEventRecord(start, 0) );
 			//for (int tj=0;tj<10;tj++)
-			updateBetaGPU(&beta,deviceZ,devicePhi,deviceAlphaMean,deviceWM,prior_mean_beta,prior_prec_beta,deviceSpatCoef,deviceCovar,seed);
+			if (UPDATE_WM)
+			  updateBetaGPU(&beta,deviceZ,devicePhi,deviceAlphaMean,deviceWM,prior_mean_beta,prior_prec_beta,deviceSpatCoef,deviceCovar,seed);
 			if (!(iter%PRNtITER)) {
 				CUDA_CALL( cudaEventRecord(stop, 0) );
 				CUDA_CALL( cudaEventSynchronize(stop) );
@@ -1173,8 +1176,7 @@ void initializeAlpha(unsigned char *msk,float *alphaMean,float *alphaPrec,float 
 			}
 			fclose(in);
 		}
-		else {*/
-//			FILE *fout;
+		else {*/ //			FILE *fout;
 //			fout = fopen("Af.dat","w");
 			for (int k=1;k<NDEPTH+1;k++) {
 				for (int j=1;j<NCOL+1;j++) {

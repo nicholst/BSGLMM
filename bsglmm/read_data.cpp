@@ -31,6 +31,7 @@ extern float *deviceCovar;
 extern float *deviceCov_Fix;
 extern float *XXprime;
 extern float *XXprime_Fix;
+extern int UPDATE_WM;
 
 typedef double MY_DATATYPE;
 double *grp_prior;
@@ -513,36 +514,41 @@ float *read_nifti1_WM(unsigned char *msk)
 	struct nifti_1_header *nifti_head;
 	FILE *data,*hdr,*qconv;
 
-	hdr = fopen("./images/avg152T1_white.hdr","r");
-	if (hdr == NULL) {
-		printf("Header file does not exist\n");
-		exit(0);
-	}
-	
-	nifti_head = (struct nifti_1_header *)malloc(352);
-	rtn = fread(nifti_head,352,1,hdr);
-	if (!(nifti_head->datatype == NIFTI_TYPE_UINT8)) {
-		printf("Incorrect data type in file: %d\n",nifti_head->datatype);
-		printf("Must be unsigned char (NIFTI_TYPE_UINT8)\n");
-		exit(0);
-	}
-	if (nifti_head->datatype == NIFTI_TYPE_UINT8) {
-		data = fopen("./images/avg152T1_white.img","r");
-		if (data == NULL) {
-			printf("Image file does not exist\n");
+	if (UPDATE_WM) {
+		hdr = fopen("./images/avg152T1_white.hdr","r");
+		if (hdr == NULL) {
+			printf("White matter (images/avg152T1_white.{img,hdr}) does not exist\n");
 			exit(0);
 		}
-		image = (unsigned char *)malloc(nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3] * sizeof(unsigned char));
-		int ret = fread(image, sizeof(unsigned char), nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3], data);
-		if (ret != nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3]) {
-			printf("\nError reading volume 1 from (%d)\n",ret);
-			free(image);
+	  
+		nifti_head = (struct nifti_1_header *)malloc(352);
+		rtn = fread(nifti_head,352,1,hdr);
+		if (!(nifti_head->datatype == NIFTI_TYPE_UINT8)) {
+			printf("Incorrect data type in file: %d\n",nifti_head->datatype);
+			printf("Must be unsigned char (NIFTI_TYPE_UINT8)\n");
 			exit(0);
 		}
+		if (nifti_head->datatype == NIFTI_TYPE_UINT8) {
+			data = fopen("./images/avg152T1_white.img","r");
+			if (data == NULL) {
+				printf("Image file does not exist\n");
+				exit(0);
+			}
+			image = (unsigned char *)malloc(nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3] * sizeof(unsigned char));
+			int ret = fread(image, sizeof(unsigned char), nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3], data);
+			if (ret != nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3]) {
+				printf("\nError reading volume 1 from (%d)\n",ret);
+				free(image);
+				exit(0);
+			}
+			
+		} else {
+			printf("White matter image wrong precision (must be unit8)");
+			exit(1);
+		}
+		fclose(hdr);
+	}
 		
-	}
-	fclose(hdr);
-
 	WM = (float *)calloc(TOTVOX,sizeof(float));
 
 	int t = 0,idx,cnt=0;
@@ -551,7 +557,10 @@ float *read_nifti1_WM(unsigned char *msk)
 			for(i=1;i<NROW+1; i++) {
 				idx = i + (NROW+2)*j + (NROW+2)*(NCOL+2)*k;
 				if (msk[idx]) { 
-					WM[cnt] = (float)(*(image+t))/255.0f;
+					if (UPDATE_WM)
+						WM[cnt] = (float)(*(image+t))/255.0f;
+					else
+						WM[cnt] = 1.0f;
 					cnt++;
 				}
 				t++;
