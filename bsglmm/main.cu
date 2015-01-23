@@ -44,6 +44,10 @@ int MODEL = 1;    // logistic = 0; Probit = 1, t = 2;
 //float *deviceChiSqHist;
 //int   ChiSqHist_N;
 
+#define IMAGE_DIR "./images"
+#define DEFAULT_MASK "mask.nii.gz"
+#define DEFAULT_WM "avg152T1_white_.nii.gz"
+
 curandState *devStates;
 INDEX *INDX;
 
@@ -55,6 +59,8 @@ double M = exp(-PREC*log(2.0));
 
 int main (int argc, char * const argv[]) {
 	int rtn,cnt,cnt0,cnt1,cntp;
+	char *WM_name=(char*)calloc(300,sizeof(char));
+	char *mask_name=(char*)calloc(300,sizeof(char));
 	unsigned char *data;
 	unsigned char *msk,*mskp;
 	unsigned long *seed;
@@ -70,33 +76,43 @@ int main (int argc, char * const argv[]) {
 	void mcmc(float *,float *,unsigned char *,float *,unsigned char *,unsigned long *);
 	void write_empir_prb(unsigned char *,float *,unsigned char *,int *);
 	unsigned char *get_WM_mask(float *,unsigned char *);
+
 	
-	if (argc !=5 && argc !=7 && argc !=8) {
-	   printf("Usage: %s  NTypes  NCov  GPU  Design  [MaxIter BurnIn]  \n",argv[0]);
-	   printf("  NTypes  - Number of groups\n");
-	   printf("  NCov    - Number of covariates (count must include groups)\n");
-	   printf("  GPU     - 1 use GPU; 0 use CPU (CPU not tested! Use with caution)\n");
-	   printf("  Design  - Text file, tab or space separated data file\n");
-	   printf("  MaxIter - Number of iterations (defaults to 1,000,000)\n");
-	   printf("  BurnIn  - Number of burn-in iterations (defaults to 500,000)\n");
-	   printf("  UseWM   - 1 use WM (images/avg152T1_white.{img,hdr} image (default); 0 don't\n");
-	   printf("For documentation see: http://warwick.ac.uk/tenichols/BSGLMM\n");
+	
+	if (argc !=7 && argc !=9) {
+		printf("Usage: %s  NTypes  NCov  GPU  Design Mask WM [MaxIter BurnIn]  \n",argv[0]);
+		printf("  NTypes  - Number of groups\n");
+		printf("  NCov    - Number of covariates (count must include groups)\n");
+		printf("  GPU     - 1 use GPU; 0 use CPU (CPU not tested! Use with caution)\n");
+		printf("  Design  - Text file, tab or space separated data file\n");
+		printf("  Mask    - Filename of mask image in '%s' directory, or '1' to use default (%s)\n",IMAGE_DIR,DEFAULT_MASK);
+		printf("  WM      - Filename of WM image in '%s' directory, '0' to use none, or '1' to use default (%s)\n",IMAGE_DIR,DEFAULT_WM);
+		printf("  MaxIter - Number of iterations (defaults to 1,000,000)\n");
+		printf("  BurnIn  - Number of burn-in iterations (defaults to 500,000)\n");
+		printf("For documentation see: http://warwick.ac.uk/tenichols/BSGLMM\n");
 		exit(1);
-		}
+	}
 
 	NSUBTYPES = atoi(argv[1]);
 	NCOVAR = atoi(argv[2]);
 	GPU = atoi(argv[3]);
-	if (argc >5)  {
-		MAXITER = atoi(argv[5]);
-		BURNIN  = atoi(argv[6]);
+	if (strcmp(argv[5],"1")==0)
+		sprintf(mask_name,"%s/%s",IMAGE_DIR,DEFAULT_MASK);
+	else
+		sprintf(mask_name,"%s/%s",IMAGE_DIR,argv[5]);
+	if (strcmp(argv[6],"0")==0)
+		UPDATE_WM=0;
+	else if  (strcmp(argv[6],"1")==0)
+		sprintf(WM_name,"%s/%s",IMAGE_DIR,DEFAULT_WM);
+	else
+		sprintf(WM_name,"%s/%s",IMAGE_DIR,argv[6]);
+	if (argc >7)  {
+		MAXITER = atoi(argv[7]);
+		BURNIN  = atoi(argv[8]);
 		if (MAXITER<1000) 
 		   printf("WARNING: Silly-small number of iterations used; recommend abort and use more\n");
 		if (BURNIN>MAXITER)
 		   printf("WARNING: Burn-in exceeds MAXITER, no results will be saved\n");
-		if (argc >7)  {
-		  UPDATE_WM = atoi(argv[7]);
-		}
 	}	
 
 	
@@ -159,13 +175,11 @@ int main (int argc, char * const argv[]) {
 	if (MODEL == 2) 
 		t_df = 3.0f;
 
-	
 		
-//	msk  = read_nifti1_mask("./images/avg152T1_highres_brain.hdr",
-//				"./images/avg152T1_highres_brain.img");
-	msk = read_nifti1_mask("./images/mask.nii");
+	msk = read_nifti1_mask(mask_name);
 
-	WM = read_nifti1_WM("./images/avg152T1_white.hdr",msk);
+	WM = read_nifti1_WM(WM_name,msk);
+
 	data = read_nifti1_image(msk,argv[4]);
 
 	if (RESTART)
@@ -410,7 +424,7 @@ int main (int argc, char * const argv[]) {
 	free(mskp);
 	free(WM);	
 	free(data);
-	
+	free(WM_name);
 	
 	
 	fseed = fopen("seed.dat","w");

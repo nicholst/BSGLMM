@@ -46,7 +46,7 @@ int test_ext(const char *img_name,const char *ext)
 	
 	ptr = strstr(img_name,ext); 
 	if (ptr!=NULL) {
-		if (img_name - ptr == strlen(img_name) - strlen(ext))
+		if (ptr - img_name == strlen(img_name) - strlen(ext))
 			Found=1;
 	}
 	
@@ -105,19 +105,20 @@ FILE *nifti_expand(const char *img_name,char *exp_name)
 		RR = strcpy(RR,"gunzip ");
 		RR = strcat(RR,(const char *)img_name);		
 		int rtn = system(RR);
-		if (!rtn) {
+		if (rtn) {
 			printf("Error unzipping file '%s'\n",img_name);
 			exit(rtn);
 		}
-		data=fopen(RR,"r");
+		data=fopen(exp_name,"r");
 		if (data==NULL) {
-			printf("Cannot open unzipped file '%s'\n",RR);
+			printf("Cannot open unzipped file '%s'\n",exp_name);
 			exit(1);
 		}
 		free(RR);
 	} else {
 		strcpy(exp_name,img_name);
 	}
+	return(data);
 }
 void nifti_compress(const char *img_name,const char *exp_name)
 {
@@ -129,7 +130,7 @@ void nifti_compress(const char *img_name,const char *exp_name)
 		RR = strcpy(RR,"gzip ");
 		RR = strcat(RR,exp_name);
 		int rtn = system(RR);
-		if (!rtn) {
+		if (rtn) {
 			printf("WARNING: Error re-zipping '%s'\n",exp_name);
 		}
 
@@ -167,6 +168,7 @@ void reverse(char *s)
 
 unsigned char *read_nifti1_mask(char *mask_name)
 {
+	//	fprintf(stderr,"reading mask %s\n",mask_name);
 	int i,j,k,rtn;
 	double *image;
 	char *RR,*basenm,*tok2;
@@ -228,6 +230,7 @@ unsigned char *read_nifti1_mask(char *mask_name)
 
 unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 {
+	//	fprintf(stderr,"reading images %s\n",file_name);
 	int ii,jj,kk,*list;
 	int i,j,k,rtn,nrow,ncol,ndepth,cnt,t,subtype_cnt;
 	unsigned char *img2;
@@ -284,7 +287,7 @@ unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 		}
 		if (cnt == NCOVAR+1) {
 			T = strcpy(T,"./images/");
-			T = strcpy(T,S);
+			T = strcat(T,S);
 			img_list[sub_cnt] = strcpy(img_list[sub_cnt],T);
 		}
 		cnt++;
@@ -312,13 +315,15 @@ unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 
 	img2 = (unsigned char *)calloc(NSUBS*TOTVOX,sizeof(unsigned char));
 
+	fflush(stdout);
+	fprintf(stderr,"Loading images: ");
 	char *img_nm,*img_nm_exp;
 	img_nm = (char *)calloc(500,sizeof(char));
 	img_nm_exp = (char *)calloc(500,sizeof(char));
 	for (int isub=0;isub<NSUBS;isub++) {
 
 		strcpy(img_nm,img_list[isub]);		
-
+		fprintf(stderr,".",img_nm);
 		data = nifti_expand(img_nm,img_nm_exp);
 
 		nifti_head = (struct nifti_1_header *)malloc(352);
@@ -382,6 +387,7 @@ unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 		free(nifti_head);
 	}
 
+	fprintf(stderr,"\n");
 
 	free(img_nm);
 	free(img_nm_exp);
@@ -464,34 +470,37 @@ void write_empir_prb(unsigned char *msk,float *covar,unsigned char *data,int *ho
 
 float *read_nifti1_WM(const char *WM_name,const unsigned char *msk)
 {
+	//	fprintf(stderr,"reading WM %s\n",WM_name);
 	int i,j,k,rtn;
 	unsigned char *image;
 	float *WM;
 	struct nifti_1_header *nifti_head;
 	FILE *data,*hdr,*qconv;
 
-	char *WM_name_exp = (char *)calloc(300,sizeof(char));
-	data = nifti_expand(WM_name,WM_name_exp);
-
-	nifti_head = (struct nifti_1_header *)malloc(352);
-	rtn = fread(nifti_head,352,1,data);
-	if (!(nifti_head->datatype == NIFTI_TYPE_UINT8)) {
-		printf("Incorrect data type in file: %d\n",nifti_head->datatype);
-		printf("Must be unsigned char (NIFTI_TYPE_UINT8)\n");
-		exit(0);
-	}
-	if (nifti_head->datatype == NIFTI_TYPE_UINT8) {
-		image = (unsigned char *)malloc(nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3] * sizeof(unsigned char));
-		int ret = fread(image, sizeof(unsigned char), nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3], data);
-		if (ret != nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3]) {
-			printf("\nError reading volume 1 from (%d)\n",ret);
-			free(image);
+	if (UPDATE_WM) {
+		char *WM_name_exp = (char *)calloc(300,sizeof(char));
+		data = nifti_expand(WM_name,WM_name_exp);
+		
+		nifti_head = (struct nifti_1_header *)malloc(352);
+		rtn = fread(nifti_head,352,1,data);
+		if (!(nifti_head->datatype == NIFTI_TYPE_UINT8)) {
+			printf("Incorrect data type in file: %d\n",nifti_head->datatype);
+			printf("Must be unsigned char (NIFTI_TYPE_UINT8)\n");
 			exit(0);
 		}
-		
+		if (nifti_head->datatype == NIFTI_TYPE_UINT8) {
+			image = (unsigned char *)malloc(nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3] * sizeof(unsigned char));
+			int ret = fread(image, sizeof(unsigned char), nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3], data);
+			if (ret != nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3]) {
+				printf("\nError reading volume 1 from (%d)\n",ret);
+				free(image);
+				exit(0);
+			}
+			
+		}
+		fclose(data);
+		nifti_compress(WM_name,WM_name_exp);
 	}
-	fclose(data);
-	nifti_compress(WM_name,WM_name_exp);
 
 	WM = (float *)calloc(TOTVOX,sizeof(float));
 
@@ -511,7 +520,8 @@ float *read_nifti1_WM(const char *WM_name,const unsigned char *msk)
 			}
 		}
 	}
-	free(image);
+	if (UPDATE_WM)
+		free(image);
 	
 	return WM;
 }
@@ -529,6 +539,7 @@ int is_numeric(const char *p) {
 
 float *read_covariates(char *file_name)
 {
+	//	fprintf(stderr,"reading cov %s\n",file_name);
 	int i,j,rtn,sub_cnt;
 	char *S,*T,*U;
 	float *covar,x[NCOVAR];
