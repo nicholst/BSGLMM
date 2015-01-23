@@ -37,7 +37,7 @@ float *XXprime;
 float *deviceCov_Fix;
 float *hostCov_Fix;
 float *XXprime_Fix;
-float logit_factor; 
+float logit_factor;
 float t_df;
 int MODEL = 1;    // logistic = 0; Probit = 1, t = 2;
 
@@ -46,7 +46,7 @@ int MODEL = 1;    // logistic = 0; Probit = 1, t = 2;
 
 #define IMAGE_DIR "./images"
 #define DEFAULT_MASK "mask.nii.gz"
-#define DEFAULT_WM "avg152T1_white_.nii.gz"
+#define DEFAULT_WM "avg152T1_white.nii.gz"
 
 curandState *devStates;
 INDEX *INDX;
@@ -66,7 +66,7 @@ int main (int argc, char * const argv[]) {
 	unsigned long *seed;
 	float *WM;
 	FILE *fseed;
-	
+
 //	unsigned char *read_nifti1_mask(char *,char *);
 	unsigned char *read_nifti1_mask(char *);
 	unsigned char *read_nifti1_image(unsigned char *,char *);
@@ -77,8 +77,8 @@ int main (int argc, char * const argv[]) {
 	void write_empir_prb(unsigned char *,float *,unsigned char *,int *);
 	unsigned char *get_WM_mask(float *,unsigned char *);
 
-	
-	
+
+
 	if (argc !=7 && argc !=9) {
 		printf("Usage: %s  NTypes  NCov  GPU  Design Mask WM [MaxIter BurnIn]  \n",argv[0]);
 		printf("  NTypes  - Number of groups\n");
@@ -109,13 +109,13 @@ int main (int argc, char * const argv[]) {
 	if (argc >7)  {
 		MAXITER = atoi(argv[7]);
 		BURNIN  = atoi(argv[8]);
-		if (MAXITER<1000) 
+		if (MAXITER<1000)
 		   printf("WARNING: Silly-small number of iterations used; recommend abort and use more\n");
 		if (BURNIN>MAXITER)
 		   printf("WARNING: Burn-in exceeds MAXITER, no results will be saved\n");
-	}	
+	}
 
-	
+
 	RESTART = 0;
 	int deviceCount = 0;
    	cudaError_t error_id = cudaGetDeviceCount(&deviceCount);
@@ -150,7 +150,7 @@ int main (int argc, char * const argv[]) {
 	printf("Device used is %s \n\n",deviceProp.name);
 
 	RESTART = 0;
-	
+
 	seed = (unsigned long *)calloc(3,sizeof(unsigned long));
 	fseed = fopen("seed.dat","r");
 	if (fseed == NULL){
@@ -165,17 +165,17 @@ int main (int argc, char * const argv[]) {
 		  exit(1);
 	}
 
-	
+
 	logit_factor = 1.0f;
 	t_df = 1000.0f;
 	if (MODEL == 0) {
-		logit_factor = 0.634f; 
+		logit_factor = 0.634f;
 		t_df = 8.0f;
 	}
-	if (MODEL == 2) 
+	if (MODEL == 2)
 		t_df = 3.0f;
 
-		
+
 	msk = read_nifti1_mask(mask_name);
 
 	WM = read_nifti1_WM(WM_name,msk);
@@ -184,7 +184,7 @@ int main (int argc, char * const argv[]) {
 
 	if (RESTART)
 		BURNIN = 1;
-	
+
 
   	mskp = (unsigned char *)calloc((NROW+2)*(NCOL+2)*(NDEPTH+2),sizeof(unsigned char));
 	for (int k=1;k<NDEPTH+1;k++) {
@@ -211,8 +211,8 @@ int main (int argc, char * const argv[]) {
 				if (mskp[i + (NROW+2)*j + (NROW+2)*(NCOL+2)*k]) TOTVOXp++;
 			}
 		}
-	} 	
-	
+	}
+
 	INDX = (INDEX *)calloc(2,sizeof(INDEX));
  	for (int k=1;k<NDEPTH+1;k++) {
  		for (int j=1;j<NCOL+1;j++) {
@@ -256,18 +256,18 @@ int main (int argc, char * const argv[]) {
 				for (int k = kk;k<NDEPTH+1;k+=2) {
 					for (int j=jj;j<NCOL+1;j+=2) {
 						for (int i=ii;i<NROW+1;i+=2) {
-							if (msk[i + (NROW+2)*j + (NROW+2)*(NCOL+2)*k]) 
+							if (msk[i + (NROW+2)*j + (NROW+2)*(NCOL+2)*k])
 								INDX[idx].hostN++;
 						}
 					}
 				}
 				idx++;
 			}
-		}		
+		}
 	}*/
 
 	float  	NSIZE = (NROW+2)*(NCOL+2)*(NDEPTH+2);
-	
+
 	if (GPU) {
 		for (int i=0;i<2;i++) {
 			INDX[i].hostVox = (int *)calloc(INDX[i].hostN,sizeof(int));
@@ -327,9 +327,9 @@ int main (int argc, char * const argv[]) {
 			}
 		}
 	}
-	
+
 	void cnt_nbrs(int,int,int *,unsigned char *);
-	
+
 	cnt0 = cnt1 = 0;
  	for (int k=1;k<NDEPTH+1;k++) {
  		for (int j=1;j<NCOL+1;j++) {
@@ -399,18 +399,18 @@ int main (int argc, char * const argv[]) {
 			max = (max > INDX[i].hostN) ? max:INDX[i].hostN;
 //printf("max = %d\n",max);
 		for (int i=0;i<2;i++)
-			 CUDA_CALL( cudaMemcpy(INDX[i].deviceVox,INDX[i].hostVox,INDX[i].hostN*sizeof(int),cudaMemcpyHostToDevice) );	
-		for (int i=0;i<2;i++)	
+			 CUDA_CALL( cudaMemcpy(INDX[i].deviceVox,INDX[i].hostVox,INDX[i].hostN*sizeof(int),cudaMemcpyHostToDevice) );
+		for (int i=0;i<2;i++)
 			CUDA_CALL( cudaMemcpy(INDX[i].deviceNBRS,INDX[i].hostNBRS,INDX[i].hostN*sizeof(unsigned char),cudaMemcpyHostToDevice) );
-		CUDA_CALL( cudaMemcpy(deviceIdx,hostIdx,NSIZE*sizeof(int),cudaMemcpyHostToDevice) );	
-		CUDA_CALL( cudaMemcpy(deviceIdxSC,hostIdxSC,NSIZE*sizeof(int),cudaMemcpyHostToDevice) );	
+		CUDA_CALL( cudaMemcpy(deviceIdx,hostIdx,NSIZE*sizeof(int),cudaMemcpyHostToDevice) );
+		CUDA_CALL( cudaMemcpy(deviceIdxSC,hostIdxSC,NSIZE*sizeof(int),cudaMemcpyHostToDevice) );
 	}
-	
+
 	if (GPU) {
-		__global__ void setup_kernel(curandState *,unsigned long long, const int);		
+		__global__ void setup_kernel(curandState *,unsigned long long, const int);
 		unsigned long long devseed;
-//		devseed = (unsigned long long)runiform_long_n(18446744073709551615ULL,seed);	
-		devseed = (unsigned long long)runiform_long_n(ULONG_MAX,seed);	
+//		devseed = (unsigned long long)runiform_long_n(18446744073709551615ULL,seed);
+		devseed = (unsigned long long)runiform_long_n(ULONG_MAX,seed);
 		CUDA_CALL( cudaMalloc (( void **) &devStates , max * sizeof ( curandState ) ) );
 		setup_kernel<<<512,512 >>>(devStates,devseed,max);
 	//	cutilCheckMsg("setup_kernel failed:");
@@ -419,19 +419,19 @@ int main (int argc, char * const argv[]) {
 	write_empir_prb(msk,covar,data,hostIdx);
 
 	mcmc(covar,hostCov_Fix,data,WM,msk,seed);
-	
+
 	free(msk);
 	free(mskp);
-	free(WM);	
+	free(WM);
 	free(data);
 	free(WM_name);
-	
-	
+
+
 	fseed = fopen("seed.dat","w");
 	fprintf(fseed,"%lu %lu %lu\n",seed[0],seed[1],seed[2]);
 	fclose(fseed);
 	free(seed);
-	
+
 //	cudaFree(deviceChiSqHist);
 	if (GPU) {
 		free(hostIdx);
@@ -451,7 +451,7 @@ int main (int argc, char * const argv[]) {
   	}
    	else {
  		free(covar);
-		if (NCOV_FIX > 0) 
+		if (NCOV_FIX > 0)
 			free(hostCov_Fix);
   		free(hostIdx);
    		free(deviceIdx);
@@ -463,7 +463,7 @@ int main (int argc, char * const argv[]) {
    		}
   	}
 	free(INDX);
-	
+
     return 0;
 }
 
@@ -471,32 +471,32 @@ int main (int argc, char * const argv[]) {
 void cnt_nbrs(int idx,int iidx,int *cnt,unsigned char *msk)
 {
 	int tmp;
-	
+
 	INDX[idx].hostVox[*cnt] = iidx;
-								
+
 	tmp = iidx-1;
 	if (msk[tmp])
 		INDX[idx].hostNBRS[*cnt]++;
-	
+
 	tmp = iidx+1;
 	if (msk[tmp])
 		INDX[idx].hostNBRS[*cnt]++;
-	
-	tmp = iidx - (NROW+2);	
+
+	tmp = iidx - (NROW+2);
 	if (msk[tmp])
 		INDX[idx].hostNBRS[*cnt]++;
-								
-	tmp = iidx + (NROW+2);	
+
+	tmp = iidx + (NROW+2);
 	if (msk[tmp])
 		INDX[idx].hostNBRS[*cnt]++;
-								
-	tmp = iidx - (NROW+2)*(NCOL+2);	
+
+	tmp = iidx - (NROW+2)*(NCOL+2);
 	if (msk[tmp])
 		INDX[idx].hostNBRS[*cnt]++;
-								
-	tmp = iidx + (NROW+2)*(NCOL+2);	
+
+	tmp = iidx + (NROW+2)*(NCOL+2);
 	if (msk[tmp])
 		INDX[idx].hostNBRS[*cnt]++;
-	
+
 	(*cnt)++;
 }
