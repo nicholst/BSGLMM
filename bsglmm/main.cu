@@ -64,7 +64,7 @@ int main (int argc, char * const argv[]) {
 //	unsigned char *read_nifti1_mask(char *,char *);
 	unsigned char *read_nifti1_mask(char *);
 	unsigned char *read_nifti1_image(unsigned char *,char *);
-	float *read_nifti1_WM(unsigned char *,unsigned char *);
+	float *read_nifti1_WM(const char *,const unsigned char *);
 	float *read_covariates(char *);
 	float *read_covariates_fix();
 	void mcmc(float *,float *,unsigned char *,float *,unsigned char *,unsigned long *);

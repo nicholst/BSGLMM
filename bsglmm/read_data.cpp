@@ -38,6 +38,43 @@ char **SS;
 
 #define CUDA_CALL(x) {const cudaError_t a = (x); if (a != cudaSuccess) {printf("\nCUDA Error: %s (err_num=%d) \n",cudaGetErrorString(a),a);cudaDeviceReset();assert(0);}}
 
+int test_ext(char *img_name,char *ext)
+{
+        char *ptr;
+        int Found=0;
+	
+	ptr = strstr(img_name,ext); 
+	if (ptr!=NULL) {
+		if (img_name - ptr == strlen(img_name) - strlen(ext))
+			Found=1;
+	}
+	
+	return(Found)
+}
+void nifti_basename(char *img_name,char *basenm)
+{
+        char *ptr;
+	
+	strcpy(basenm,img_name);
+	ptr = strstr(basenm,".gz"); 
+	if (ptr!=NULL)
+		*ptr=0;
+	
+	ptr = strstr(basenm,".nii"); 
+	if (ptr!=NULL)
+		*ptr=0;
+	else {
+		ptr = strstr(basenm,".img"); 
+		if (ptr!=NULL)
+			*ptr=0;
+		else {
+			ptr = strstr(basenm,".hdr"); 
+			if (ptr!=NULL)
+				*ptr=0; 
+		}
+	}
+}
+
 FILE *nifti_expand(char *img_name,char *exp_name)
 {
 	FILE *data;
@@ -95,43 +132,6 @@ void nifti_compress(char *img_name,char *exp_name)
 		free(RR);
 	}
 }
-void nifti_basename(char *img_name,char *basenm)
-{
-        char *ptr;
-	
-	strcpy(basenm,img_name);
-	ptr = strstr(basenm,".gz"); 
-	if (ptr!=NULL)
-		*ptr=0;
-	
-	ptr = strstr(basenm,".nii"); 
-	if (ptr!=NULL)
-		*ptr=0;
-	else {
-		ptr = strstr(basenm,".img"); 
-		if (ptr!=NULL)
-			*ptr=0;
-		else {
-			ptr = strstr(basenm,".hdr"); 
-			if (ptr!=NULL)
-				*ptr=0; 
-		}
-	}
-}
-int test_ext(char *img_name,char *ext)
-{
-        char *ptr;
-        int Found=0;
-	
-	ptr = strstr(img_name,ext); 
-	if (ptr!=NULL) {
-		if (img_name - ptr == strlen(img_name) - strlen(ext))
-			Found=1;
-	}
-	
-	return(Found)
-}
-
 void itoa(int n,char *s)
 {
 	int i,sign;
@@ -458,7 +458,7 @@ void write_empir_prb(unsigned char *msk,float *covar,unsigned char *data,int *ho
 	free(RR);
 }
 
-float *read_nifti1_WM(unsigned char *WM_name,unsigned char *msk)
+float *read_nifti1_WM(const char *WM_name,const unsigned char *msk)
 {
 	int i,j,k,rtn;
 	unsigned char *image;
