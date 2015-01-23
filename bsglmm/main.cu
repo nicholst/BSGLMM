@@ -64,7 +64,7 @@ int main (int argc, char * const argv[]) {
 //	unsigned char *read_nifti1_mask(char *,char *);
 	unsigned char *read_nifti1_mask(char *);
 	unsigned char *read_nifti1_image(unsigned char *,char *);
-	float *read_nifti1_WM(unsigned char *);
+	float *read_nifti1_WM(unsigned char *,unsigned char *);
 	float *read_covariates(char *);
 	float *read_covariates_fix();
 	void mcmc(float *,float *,unsigned char *,float *,unsigned char *,unsigned long *);
@@ -165,7 +165,7 @@ int main (int argc, char * const argv[]) {
 //				"./images/avg152T1_highres_brain.img");
 	msk = read_nifti1_mask("./images/mask.nii");
 
-	WM = read_nifti1_WM(msk);
+	WM = read_nifti1_WM("./images/avg152T1_white.hdr",msk);
 	data = read_nifti1_image(msk,argv[4]);
 
 	if (RESTART)

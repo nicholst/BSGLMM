@@ -31,13 +31,106 @@ extern float *deviceCovar;
 extern float *deviceCov_Fix;
 extern float *XXprime;
 extern float *XXprime_Fix;
-extern int UPDATE_WM;
 
 typedef double MY_DATATYPE;
 double *grp_prior;
 char **SS;
 
 #define CUDA_CALL(x) {const cudaError_t a = (x); if (a != cudaSuccess) {printf("\nCUDA Error: %s (err_num=%d) \n",cudaGetErrorString(a),a);cudaDeviceReset();assert(0);}}
+
+FILE *nifti_expand(char *img_name,char *exp_name)
+{
+	FILE *data;
+	int FileType=0;
+
+	if (test_ext(img_name,".nii.gz")) 
+		FileType=1;
+	if (test_ext(img_name,".nii")) 
+		FileType=2;
+	if (FileType==0) {
+		printf("Image ('%s') is not single file NIFTI (.nii or .nii.gz)",img_name);
+		exit(1);
+	}
+	data=fopen(img_name,"r");
+	if (data==NULL) {
+		printf("Cannot open '%s'",img_name);
+		exit(1);
+	}
+	
+	if (FileType==1) {
+		fclose(data);
+		nifti_basenm(img_name,exp_name);
+		strcat(exp_name,".nii");
+
+		RR = strcpy(RR,"gunzip ");
+		RR = strcat(RR,(const char *)img_name);		
+		rtn = system(RR);
+		if (!rtn) {
+			printf("Error unzipping file '%s'\n",img_name);
+			exit(rtn);
+		}
+		data=fopen(RR,"r");
+		if (data==NULL) {
+			printf("Cannot open unzipped file '%s'",RR);
+			exit(1);
+		}
+	} else {
+		strcpy(exp_name,img_name);
+	}
+}
+void nifti_compress(char *img_name,char *exp_name)
+{
+
+	if (strcmp(img_name,exp_name)!=0) {
+
+		RR = (char *)calloc(300,sizeof(char));
+
+		RR = strcpy(RR,"gzip ");
+		RR = strcat(RR,exp_name);
+		rtn = system(RR);
+		if (!rtn) {
+			printf("WARNING: Error re-zipping '%s'\n",exp_name);
+		}
+
+		free(RR);
+	}
+}
+void nifti_basename(char *img_name,char *basenm)
+{
+        char *ptr;
+	
+	strcpy(basenm,img_name);
+	ptr = strstr(basenm,".gz"); 
+	if (ptr!=NULL)
+		*ptr=0;
+	
+	ptr = strstr(basenm,".nii"); 
+	if (ptr!=NULL)
+		*ptr=0;
+	else {
+		ptr = strstr(basenm,".img"); 
+		if (ptr!=NULL)
+			*ptr=0;
+		else {
+			ptr = strstr(basenm,".hdr"); 
+			if (ptr!=NULL)
+				*ptr=0; 
+		}
+	}
+}
+int test_ext(char *img_name,char *ext)
+{
+        char *ptr;
+        int Found=0;
+	
+	ptr = strstr(img_name,ext); 
+	if (ptr!=NULL) {
+		if (img_name - ptr == strlen(img_name) - strlen(ext))
+			Found=1;
+	}
+	
+	return(Found)
+}
 
 void itoa(int n,char *s)
 {
@@ -72,33 +165,15 @@ unsigned char *read_nifti1_mask(char *mask_name)
 {
 	int i,j,k,rtn;
 	double *image;
-	char *RR,*token,*TT,*tok2;
+	char *RR,*basenm,*tok2;
 	unsigned char *mask;
 	struct nifti_1_header *nifti_head;
 	FILE *data;
+	int FileType=0;
 
-	token = (char *)calloc(200,sizeof(char));
-	RR = (char *)calloc(200,sizeof(char));
-	TT = (char *)calloc(200,sizeof(char));
+	mask_name_exp = (char *)calloc(300,sizeof(char));
+	data = nifti_expand(mask_name,mask_name_exp);
 
-	token = strcpy(token,mask_name);
-	tok2 = strtok(token,".");
-
-	TT = strcpy(TT,".");
-	TT = strcat(TT,tok2);
-	TT = strcat(TT,".nii");
-			
-	RR = strcpy(RR,"gunzip ");
-	RR = strcat(RR,(const char *)mask_name);		
-	rtn = system(RR);
-		
-	data = fopen(TT,"r");
-	data = fopen(mask_name,"r");
-	if (data == NULL) {
-		printf("mask file does not exist\n");
-		exit(0);
-	}
-	
 	nifti_head = (struct nifti_1_header *)malloc(352);
 	rtn = fread(nifti_head,352,1,data);
 
@@ -119,6 +194,8 @@ unsigned char *read_nifti1_mask(char *mask_name)
 
 	fclose(data);
 
+	nifti_compress(mask_name,mask_name_exp);
+
 	NROW = nifti_head->dim[1];
 	NCOL = nifti_head->dim[2];
 	NDEPTH = nifti_head->dim[3];
@@ -137,122 +214,13 @@ unsigned char *read_nifti1_mask(char *mask_name)
 			}
 		}
 	}
-	RR = strcpy(RR,"gzip ");
-	RR = strcat(RR,(const char *)TT);
-	rtn = system(RR);
-
-	free(RR);
-	free(TT);
-	free(token);
+	
+	free(mask_name_exp);
+	free(basenm);
 	free(image);
 
 	return mask;
 }
-/*
-unsigned char *read_nifti1_mask(char *header,char *img)
-{
-	int i,j,k,rtn;
-	unsigned char *mask,*image,*msk2;
-	struct nifti_1_header *nifti_head;
-	FILE *data,*hdr;
-	int write_nifti_file(int NROW,int NCOL,int NDEPTH,int NTIME,char *hdr_file,char *data_file,MY_DATATYPE *data);
-
-	hdr = fopen(header,"r");
-	if (hdr == NULL) {
-		printf("Header file does not exist\n");
-		exit(0);
-	}
-	
-	nifti_head = (struct nifti_1_header *)malloc(352);
-	rtn = fread(nifti_head,352,1,hdr);
-	if (!(nifti_head->datatype == NIFTI_TYPE_UINT8)) {
-		printf("Incorrect data type in file: %d\n",nifti_head->datatype);
-		printf("Must be unsigned char (NIFTI_TYPE_UINT8)\n");
-		exit(0);
-	}
-	if (nifti_head->datatype == NIFTI_TYPE_UINT8) {
-		data = fopen(img,"r");
-		if (data == NULL) {
-			printf("Image file does not exist\n");
-			exit(0);
-		}
-		image = (unsigned char *)malloc(nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3] * sizeof(unsigned char));
-		int ret = fread(image, sizeof(unsigned char), nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3], data);
-		if (ret != nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3]) {
-			printf("\nError reading volume 1 from (%d)\n",ret);
-			free(image);
-			exit(0);
-		}
-		
-	}
-	fclose(hdr);
-
-	NROW = nifti_head->dim[1];
-	NCOL = nifti_head->dim[2];
-	NDEPTH = nifti_head->dim[3];
-
-	mask = (unsigned char *)calloc((NROW+2)*(NCOL+2)*(NDEPTH+2),sizeof(unsigned char));
-
-	int t = 0,ii;
-	for(k=1; k<NDEPTH+1;k++) {
-		for(j=1; j<NCOL+1; j++) {
-			for(i=1;i<NROW+1; i++) {
-				ii = i + (NROW+2)*j + (NROW+2)*(NCOL+2)*k;
-				if (*(image+t) > 0) {
-					mask[ii] = 1;
-				}
-				else 
-					mask[ii] = 0;
-				t++;
-			}
-		}
-	}
-	free(image);
-	
-	msk2 = (unsigned char *)calloc((NROW/2+2)*(NCOL/2+2)*(NDEPTH/2+2),sizeof(unsigned char));
-
-	int jj,kk,idx1,idx2;
-	TOTVOX = 0;
-	for(k=0,kk=0;k<NDEPTH+2;k+=2,kk++) {
-		for(j=0,jj=0; j<NCOL+2; j+=2,jj++) {
-			for(i=0,ii=0;i<NROW+2; i+=2,ii++) {
-				idx1 = i + (NROW+2)*j + (NROW+2)*(NCOL+2)*k;
-				idx2 = ii + (NROW/2+2)*jj + (NROW/2+2)*(NCOL/2+2)*kk;
-				msk2[idx2] = mask[idx1];
-				if (msk2[idx2]) TOTVOX++;
-			}
-		}
-	}
-	free(mask);
-printf("TOTVOX = %d\n",TOTVOX);
-	NROW /= 2;
-	NCOL /= 2;
-	NDEPTH /= 2;
-
-	FILE *fmsk;
-	fmsk = fopen("msk.dat","w");
-	
-	double *tmpmsk = (double *)calloc(NROW*NCOL*NDEPTH,sizeof(double));
-	int cnt = 0;
-	for (int k=1;k<NDEPTH+1;k++) {
-		for (int j=1;j<NCOL+1;j++) {
-			for (int i=1;i<NROW+1;i++) {
-				idx1 = i + (NROW+2)*j + (NROW+2)*(NCOL+2)*k;
-				fprintf(fmsk,"%d ",(int)msk2[idx1]);	
-				tmpmsk[cnt] = (double)msk2[idx1];
-				cnt++;
-			}
-		}
-	}
-	char *S = (char *)calloc(200,sizeof(char));
-	S = strcpy(S,"mask.nii");
-	rtn = write_nifti_file(NROW,NCOL,NDEPTH,1,S,S,tmpmsk);
-	free(S);
-	free(tmpmsk);
-	fclose(fmsk);
-
-	return msk2;
-}*/
 
 unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 {
@@ -312,7 +280,7 @@ unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 		}
 		if (cnt == NCOVAR+1) {
 			T = strcpy(T,"./images/");
-			T = strcat(T,S);
+			T = strcpy(T,S);
 			img_list[sub_cnt] = strcpy(img_list[sub_cnt],T);
 		}
 		cnt++;
@@ -338,34 +306,17 @@ unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 		CUDA_CALL( cudaMemcpy(deviceCovar,covar,NCOVAR*NSUBS*sizeof(float),cudaMemcpyHostToDevice) );
 	}
 
-	TT = (char *)calloc(500,sizeof(char));
-	RR = (char *)calloc(500,sizeof(char));	
-
 	img2 = (unsigned char *)calloc(NSUBS*TOTVOX,sizeof(unsigned char));
 
-	char *token,*tok2;
-	token = (char *)calloc(500,sizeof(char));
+	char *img_nm,*img_nm_exp;
+	img_nm = (char *)calloc(500,sizeof(char));
+	img_nm_exp = (char *)calloc(500,sizeof(char));
 	for (int isub=0;isub<NSUBS;isub++) {
-		token = strcpy(token,img_list[isub]);		
-		tok2 = strtok(token,".");
 
-		TT = strcpy(TT,".");
-		TT = strcat(TT,tok2);
-		TT = strcat(TT,".nii");
-			
-		RR = strcpy(RR,"gunzip ");
-		RR = strcat(RR,(const char *)img_list[isub]);		
-		rtn = system(RR);
-		data = fopen(TT,"r");
-	
-		RR = strcpy(RR,"gzip ");
-		RR = strcat(RR,(const char *)TT);
-		rtn = system(RR);
+		strcpy(img_nm,img_list[isub]);		
 
-		if (data == NULL) {
-	 		printf("Image file %s does not exist\n",img_list[isub]);
-			exit(0);
-		}
+		data = nifti_expand(img_nm,img_nm_exp);
+
 		nifti_head = (struct nifti_1_header *)malloc(352);
 		rtn = fread(nifti_head,352,1,data);
 		if (!((nifti_head->datatype == NIFTI_TYPE_FLOAT32) || (nifti_head->datatype == NIFTI_TYPE_FLOAT64))) {
@@ -392,6 +343,7 @@ unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 			}
 		}
 		fclose(data);
+		nifti_compress(img_nm,img_nm_exp);
 		int idx2; 
 		int cnt2=0;
 		cnt = 0;
@@ -427,10 +379,10 @@ unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 	}
 
 
+	free(img_nm);
+	free(img_nm_exp);
 	free(S);
 	free(T);
-	free(TT);
-	free(RR);
 
 	return img2;
 }
@@ -506,7 +458,7 @@ void write_empir_prb(unsigned char *msk,float *covar,unsigned char *data,int *ho
 	free(RR);
 }
 
-float *read_nifti1_WM(unsigned char *msk)
+float *read_nifti1_WM(unsigned char *WM_name,unsigned char *msk)
 {
 	int i,j,k,rtn;
 	unsigned char *image;
@@ -514,41 +466,29 @@ float *read_nifti1_WM(unsigned char *msk)
 	struct nifti_1_header *nifti_head;
 	FILE *data,*hdr,*qconv;
 
-	if (UPDATE_WM) {
-		hdr = fopen("./images/avg152T1_white.hdr","r");
-		if (hdr == NULL) {
-			printf("White matter (images/avg152T1_white.{img,hdr}) does not exist\n");
-			exit(0);
-		}
-	  
-		nifti_head = (struct nifti_1_header *)malloc(352);
-		rtn = fread(nifti_head,352,1,hdr);
-		if (!(nifti_head->datatype == NIFTI_TYPE_UINT8)) {
-			printf("Incorrect data type in file: %d\n",nifti_head->datatype);
-			printf("Must be unsigned char (NIFTI_TYPE_UINT8)\n");
-			exit(0);
-		}
-		if (nifti_head->datatype == NIFTI_TYPE_UINT8) {
-			data = fopen("./images/avg152T1_white.img","r");
-			if (data == NULL) {
-				printf("Image file does not exist\n");
-				exit(0);
-			}
-			image = (unsigned char *)malloc(nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3] * sizeof(unsigned char));
-			int ret = fread(image, sizeof(unsigned char), nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3], data);
-			if (ret != nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3]) {
-				printf("\nError reading volume 1 from (%d)\n",ret);
-				free(image);
-				exit(0);
-			}
-			
-		} else {
-			printf("White matter image wrong precision (must be unit8)");
-			exit(1);
-		}
-		fclose(hdr);
+	WM_name_exp = (char *)calloc(300,sizeof(char));
+	data = nifti_expand(WM_name,WM_name_exp);
+
+	nifti_head = (struct nifti_1_header *)malloc(352);
+	rtn = fread(nifti_head,352,1,data);
+	if (!(nifti_head->datatype == NIFTI_TYPE_UINT8)) {
+		printf("Incorrect data type in file: %d\n",nifti_head->datatype);
+		printf("Must be unsigned char (NIFTI_TYPE_UINT8)\n");
+		exit(0);
 	}
+	if (nifti_head->datatype == NIFTI_TYPE_UINT8) {
+		image = (unsigned char *)malloc(nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3] * sizeof(unsigned char));
+		int ret = fread(image, sizeof(unsigned char), nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3], data);
+		if (ret != nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3]) {
+			printf("\nError reading volume 1 from (%d)\n",ret);
+			free(image);
+			exit(0);
+		}
 		
+	}
+	fclose(data);
+	nifti_compress(WM_name,WM_name_exp);
+
 	WM = (float *)calloc(TOTVOX,sizeof(float));
 
 	int t = 0,idx,cnt=0;
