@@ -27,6 +27,7 @@ extern int TOTVOXp;
 extern int NCOVAR;
 extern int NCOV_FIX;
 extern int NSUBTYPES;
+extern int UPDATE_WM;
 extern float *deviceCovar;
 extern float *deviceCov_Fix;
 extern float *XXprime;
@@ -38,7 +39,7 @@ char **SS;
 
 #define CUDA_CALL(x) {const cudaError_t a = (x); if (a != cudaSuccess) {printf("\nCUDA Error: %s (err_num=%d) \n",cudaGetErrorString(a),a);cudaDeviceReset();assert(0);}}
 
-int test_ext(char *img_name,char *ext)
+int test_ext(const char *img_name,const char *ext)
 {
         char *ptr;
         int Found=0;
@@ -49,9 +50,9 @@ int test_ext(char *img_name,char *ext)
 			Found=1;
 	}
 	
-	return(Found)
+	return(Found);
 }
-void nifti_basename(char *img_name,char *basenm)
+void nifti_basenm(const char *img_name,char *basenm)
 {
         char *ptr;
 	
@@ -75,7 +76,7 @@ void nifti_basename(char *img_name,char *basenm)
 	}
 }
 
-FILE *nifti_expand(char *img_name,char *exp_name)
+FILE *nifti_expand(const char *img_name,char *exp_name)
 {
 	FILE *data;
 	int FileType=0;
@@ -85,12 +86,12 @@ FILE *nifti_expand(char *img_name,char *exp_name)
 	if (test_ext(img_name,".nii")) 
 		FileType=2;
 	if (FileType==0) {
-		printf("Image ('%s') is not single file NIFTI (.nii or .nii.gz)",img_name);
+		printf("Image ('%s') is not single file NIFTI (.nii or .nii.gz)\n",img_name);
 		exit(1);
 	}
 	data=fopen(img_name,"r");
 	if (data==NULL) {
-		printf("Cannot open '%s'",img_name);
+		printf("Cannot open '%s'\n",img_name);
 		exit(1);
 	}
 	
@@ -99,32 +100,35 @@ FILE *nifti_expand(char *img_name,char *exp_name)
 		nifti_basenm(img_name,exp_name);
 		strcat(exp_name,".nii");
 
+		char *RR = (char *)calloc(300,sizeof(char));
+
 		RR = strcpy(RR,"gunzip ");
 		RR = strcat(RR,(const char *)img_name);		
-		rtn = system(RR);
+		int rtn = system(RR);
 		if (!rtn) {
 			printf("Error unzipping file '%s'\n",img_name);
 			exit(rtn);
 		}
 		data=fopen(RR,"r");
 		if (data==NULL) {
-			printf("Cannot open unzipped file '%s'",RR);
+			printf("Cannot open unzipped file '%s'\n",RR);
 			exit(1);
 		}
+		free(RR);
 	} else {
 		strcpy(exp_name,img_name);
 	}
 }
-void nifti_compress(char *img_name,char *exp_name)
+void nifti_compress(const char *img_name,const char *exp_name)
 {
 
 	if (strcmp(img_name,exp_name)!=0) {
 
-		RR = (char *)calloc(300,sizeof(char));
+		char *RR = (char *)calloc(300,sizeof(char));
 
 		RR = strcpy(RR,"gzip ");
 		RR = strcat(RR,exp_name);
-		rtn = system(RR);
+		int rtn = system(RR);
 		if (!rtn) {
 			printf("WARNING: Error re-zipping '%s'\n",exp_name);
 		}
@@ -171,7 +175,7 @@ unsigned char *read_nifti1_mask(char *mask_name)
 	FILE *data;
 	int FileType=0;
 
-	mask_name_exp = (char *)calloc(300,sizeof(char));
+	char *mask_name_exp = (char *)calloc(300,sizeof(char));
 	data = nifti_expand(mask_name,mask_name_exp);
 
 	nifti_head = (struct nifti_1_header *)malloc(352);
@@ -466,7 +470,7 @@ float *read_nifti1_WM(const char *WM_name,const unsigned char *msk)
 	struct nifti_1_header *nifti_head;
 	FILE *data,*hdr,*qconv;
 
-	WM_name_exp = (char *)calloc(300,sizeof(char));
+	char *WM_name_exp = (char *)calloc(300,sizeof(char));
 	data = nifti_expand(WM_name,WM_name_exp);
 
 	nifti_head = (struct nifti_1_header *)malloc(352);
