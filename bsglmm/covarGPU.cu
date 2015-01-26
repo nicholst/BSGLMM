@@ -79,7 +79,7 @@ __global__ void setup_kernel ( curandState * state, unsigned long long devseed, 
 /* Each thread gets same seed , a different sequence number, no offset */
 
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
-	
+
 	while (idx < N) {
 		curand_init (devseed , idx , 0 , & state [ idx ]) ;
    		idx += blockDim.x *gridDim.x;
@@ -92,7 +92,7 @@ __global__ void reduce(float *in,float *out,const int N)
 	__shared__ float cache[NN];
 	int cacheIndex = threadIdx.x;
 	int ivox = threadIdx.x + blockIdx.x * blockDim.x;
-	
+
 	float c = 0;
 	float y,t;
 	float temp = 0;
@@ -103,19 +103,19 @@ __global__ void reduce(float *in,float *out,const int N)
 		temp = t;
 		ivox += blockDim.x * gridDim.x;
 	}
-	
+
 	cache[cacheIndex] = temp;
-	
+
 	__syncthreads();
-	
+
 	int i = (blockDim.x >> 1);
 	while (i != 0) {
 		if (cacheIndex < i)
 			cache[cacheIndex] += cache[cacheIndex + i];
 		__syncthreads();
-		i = i >> 1;	
+		i = i >> 1;
 	}
-	
+
 	if (cacheIndex == 0)
 		out[blockIdx.x] = cache[0];
 }
@@ -124,17 +124,17 @@ __global__ void reduce(float *in,float *out,const int N)
 __device__ int cholesky_decompGPU(float *A, int num_col)
 {
 	int k,i,j;
-	
+
 	for (k=0;k<num_col;k++) {
 		if (A[k + k*num_col] <= 0) {
 			return 0;
 		}
-		
+
 		A[k + k*num_col] = sqrtf(A[k + k*num_col]);
-		
+
 		for (j=k+1;j<num_col;j++)
 			A[k + j*num_col] /= A[k + k*num_col];
-		
+
 		for (j=k+1;j<num_col;j++)
 			for (i=j;i<num_col;i++)
 				A[j+i*num_col] = A[j + i*num_col] - A[k + i*num_col] * A[k + j*num_col];
@@ -147,13 +147,13 @@ __device__ void cholesky_invertGPU(int len,float *H)
 	/* takes G from GG' = A and computes A inverse */
 	int i,j,k;
 	float temp,INV[20*20];
-	
+
 	for (i=0;i<20*20;i++)
 		INV[i] = 0;
-		
+
 	for (i=0;i<len;i++)
 		INV[i + i*len] = 1;
-	
+
 	for (k=0;k<len;k++) {
 		INV[0 + k*len] /= H[0];
 		for (i=1;i<len;i++) {
@@ -179,13 +179,13 @@ __device__ int rmvnormGPU(float *result,float *A,int size_A,float *mean,curandSt
 {
 	int i,j;
 	float runiv[20],tmp=0;
-	
+
 
 	j = 1;
 	if (!flag)
 		j = cholesky_decompGPU(A,size_A);
 	if (j) {
-		for (i=0;i<size_A;i++) 
+		for (i=0;i<size_A;i++)
 			runiv[i] = curand_normal(state);
 		for (i=0;i<size_A;i++) {
 			tmp = 0;
@@ -205,58 +205,58 @@ __global__ void Spat_Coef_for_Spat_Covar(float *covar,float *alpha,float *Z,floa
 {
 	extern __shared__ float shared[];
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
-	int localsize = blockDim.x;  
-	int localid = threadIdx.x; 
-	
+	int localsize = blockDim.x;
+	int localid = threadIdx.x;
+
 	float sumV[20];
 	float mean[20];
 	float var[20*20];
 	float tmp=0;
 	float tmp2[20];
-	float alph[20];
-	
+	//float alph[20];
+
 	int voxel=0,IDX=0,IDXSC=0;
 	int current_covar=0;
 	curandState localState;
 
-	if (idx < N) {  
+	if (idx < N) {
 		voxel =  vox[idx];
 		IDX   = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
-		
+
 		for (int ii=0;ii<NCOVAR2;ii++) {
 			mean[ii] = 0;
 			//alph[ii] = alpha[ii];
 		}
 	}
-	
+
 	for (int isub = 0; isub < NSUBS; isub += localsize ) {
 		if ((isub+localsize) > NSUBS)
 		localsize = NSUBS - isub;
-				
+
 		if ((isub+localid) < NSUBS) {
-			for (int j=0;j<NCOVAR;j++) 
+			for (int j=0;j<NCOVAR;j++)
 //				shared[localid + j*localsize] = covar[(isub+localid)*NCOVAR + j]*SpatCoef[j*TOTVOXp + IDXSC];
 				shared[localid + j*localsize] = covar[j*NSUBS + (isub+localid)]*SpatCoef[j*TOTVOXp + IDXSC];
 		}
 		__syncthreads();
-				
+
 		for (int j=0;j<localsize;j++) {
-				
+
 			tmp = Z[(isub+j)*TOTVOX+IDX];
 			for (int ii=0;ii<NCOVAR;ii++) {
-				tmp -= shared[j + ii*localsize]; 
+				tmp -= shared[j + ii*localsize];
 			}
-			for (current_covar=0;current_covar<NCOVAR2;current_covar++) {	
+			for (current_covar=0;current_covar<NCOVAR2;current_covar++) {
 				mean[current_covar] += WM[current_covar*TOTVOXp + IDXSC]*tmp;
 			}
-		}		
+		}
 		__syncthreads();
 	}
 
 	if (idx < N) {
 		localState = state[idx];
-		for (current_covar=0;current_covar<NCOVAR2;current_covar++) {	
+		for (current_covar=0;current_covar<NCOVAR2;current_covar++) {
 			sumV[current_covar]  = beta[(current_covar*TOTVOXp+dIdxSC[voxel-1])]
 			      				 + beta[(current_covar*TOTVOXp+dIdxSC[voxel+1])]
 			      				 + beta[(current_covar*TOTVOXp+dIdxSC[voxel-(NROW+2)])]
@@ -266,26 +266,26 @@ __global__ void Spat_Coef_for_Spat_Covar(float *covar,float *alpha,float *Z,floa
 		}
 /**** fix up dtmpvar and dPrec matrices *****/
 		for (int ii=0;ii<NCOVAR2;ii++) {
-			for (int jj=0;jj<NCOVAR2;jj++) {	
+			for (int jj=0;jj<NCOVAR2;jj++) {
 				mean[ii] += dPrec[jj + ii*NCOVAR2]*sumV[jj];
 				var[jj + ii*NCOVAR2] = dtmpvar[jj + ii*NCOVAR2] + nbrs[idx]*dPrec[jj + ii*NCOVAR2];
 			}
 		}
-		// decompose and invert var 
+		// decompose and invert var
 		cholesky_decompGPU(var,NCOVAR2);
 		cholesky_invertGPU(NCOVAR2, var);
-		
+
 		for (int ii=0;ii<NCOVAR2;ii++) {
 			tmp2[ii] = 0;
 			for (int jj=0;jj<NCOVAR2;jj++)
 				tmp2[ii] += var[jj + ii*NCOVAR2]*mean[jj];
-		}			
+		}
 		// draw MVN and with mean tmp2 and variance var --- result in mean;
 		rmvnormGPU(mean,var,NCOVAR2,tmp2,&localState,0);
-			
-		for (int ii=0;ii<NCOVAR2;ii++) 
+
+		for (int ii=0;ii<NCOVAR2;ii++)
 			beta[(ii*TOTVOXp+IDXSC)] = mean[ii];
-	
+
 		state[idx] = localState;
 	}
 }
@@ -294,66 +294,66 @@ __global__ void Spat_Coef_Probit(float *covar,float *covF,float *fix,float *alph
 {
 	extern __shared__ float shared[];
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
-	int localsize = blockDim.x;  
-	int localid = threadIdx.x; 
-	
+	int localsize = blockDim.x;
+	int localid = threadIdx.x;
+
 	float sumV[20];
 	float mean[20];
 	float var[20*20];
 	float tmp=0;
 	float tmp2[20];
-	float alph[20];
-	float fixed[20];
-	
+	//float alph[20];
+	//float fixed[20];
+
 	int voxel=0,IDX=0,IDXSC=0;
 	float bwhtmat=0;
 	int current_covar=0;
 	curandState localState;
 
-	if (idx < N) {  
+	if (idx < N) {
 		voxel =  vox[idx];
 		IDX   = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
 		bwhtmat = beta*WM[IDX];
-		
+
 		for (int ii=0;ii<NCOVAR;ii++) {
 			mean[ii] = 0;
 			//alph[ii] = alpha[ii];
 		}
 	//	for (int ii=0;ii<NCOV_FIX;ii++)
-	//		fixed[ii] =  fix[ii]; 
+	//		fixed[ii] =  fix[ii];
 	}
-	
+
 	for (int isub = 0; isub < NSUBS; isub += localsize ) {
 		if ((isub+localsize) > NSUBS)
 		 	localsize = NSUBS - isub;
-				
+
 		if ((isub+localid) < NSUBS) {
-			for (int j=0;j<NCOVAR;j++) 
+			for (int j=0;j<NCOVAR;j++)
 				shared[localid + j*localsize] = covar[j*NSUBS + (isub+localid)];
 		}
 		__syncthreads();
-				
+
 		for (int j=0;j<localsize;j++) {
-				
+
 			float ZZ = Z[(isub+j)*TOTVOX+IDX];
 			tmp = ZZ - bwhtmat;
 		//	for (int ii=0;ii<NCOVAR;ii++) {
-		//		tmp -= alph[ii] *shared[j + ii*localsize]; 
+		//		tmp -= alph[ii] *shared[j + ii*localsize];
 		//	}
 		//	for (int ii=0;ii<NCOV_FIX;ii++) {
-		//		tmp -= fixed[ii] * covF[(isub+j)*NCOV_FIX + ii]; 
+		//		tmp -= fixed[ii] * covF[(isub+j)*NCOV_FIX + ii];
 		//	}
-			for (current_covar=0;current_covar<NCOVAR;current_covar++) {	
+			for (current_covar=0;current_covar<NCOVAR;current_covar++) {
 				mean[current_covar] += shared[j + current_covar*localsize]*tmp;
 			}
-		}		
+		}
 		__syncthreads();
 	}
 
 	if (idx < N) {
 		localState = state[idx];
-		for (current_covar=0;current_covar<NCOVAR;current_covar++) {	
+		for (current_covar=0;current_covar<NCOVAR;current_covar++) {
 			sumV[current_covar]  = SpatCoef[(current_covar*TOTVOXp+dIdxSC[voxel-1])]
 			      				 + SpatCoef[(current_covar*TOTVOXp+dIdxSC[voxel+1])]
 			      				 + SpatCoef[(current_covar*TOTVOXp+dIdxSC[voxel-(NROW+2)])]
@@ -364,34 +364,34 @@ __global__ void Spat_Coef_Probit(float *covar,float *covF,float *fix,float *alph
 // TIME TO HERE IS 38.2 ms
 /**** fix up dtmpvar and dPrec matrices *****/
 		for (int ii=0;ii<NCOVAR;ii++) {
-			for (int jj=0;jj<NCOVAR;jj++) {	
+			for (int jj=0;jj<NCOVAR;jj++) {
 				mean[ii] += dPrec[jj + ii*NCOVAR]*sumV[jj];
 				var[jj + ii*NCOVAR] = dtmpvar[jj + ii*NCOVAR] + nbrs[idx]*dPrec[jj + ii*NCOVAR];
 			}
 		}
-// TIME TO HERE IS 39.8  ms	
-	// decompose and invert var 
+// TIME TO HERE IS 39.8  ms
+	// decompose and invert var
 		cholesky_decompGPU(var,NCOVAR);
-// TIME TO HERE IS  59.2 ms	
+// TIME TO HERE IS  59.2 ms
 		cholesky_invertGPU(NCOVAR, var);
-// TIME TO HERE IS  127.8 ms	
-		
+// TIME TO HERE IS  127.8 ms
+
 		for (int ii=0;ii<NCOVAR;ii++) {
 			tmp2[ii] = 0;
 			for (int jj=0;jj<NCOVAR;jj++)
 				tmp2[ii] += var[jj + ii*NCOVAR]*mean[jj];
-		}			
-// TIME TO HERE IS  128.1 ms	
+		}
+// TIME TO HERE IS  128.1 ms
 		// draw MVN and with mean tmp2 and variance var --- result in mean;
 		rmvnormGPU(mean,var,NCOVAR,tmp2,&localState,0);
-// TIME TO HERE IS 151.9  ms	
-			
-		for (int ii=0;ii<NCOVAR;ii++) 
+// TIME TO HERE IS 151.9  ms
+
+		for (int ii=0;ii<NCOVAR;ii++)
 			SpatCoef[(ii*TOTVOXp+IDXSC)] = mean[ii];
-	
+
 		state[idx] = localState;
 	}
-// TIME TO HERE IS 150.83   ms	
+// TIME TO HERE IS 150.83   ms
 
 }
 
@@ -399,28 +399,28 @@ __global__ void Spat_Coef(float *covar,float *covF,float *fix,float *alpha,float
 {
 	extern __shared__ float shared[];
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
-	int localsize = blockDim.x;  
-	int localid = threadIdx.x; 
-	
+	int localsize = blockDim.x;
+	int localid = threadIdx.x;
+
 	float sumV[20];
 	float mean[20];
 	float var[20*20];
 	float tmp=0;
 	float tmp2[20];
-	float alph[20];
+	//float alph[20];
 	float fixed[20];
-	
+
 	int voxel=0,IDX=0,IDXSC=0;
 	float bwhtmat=0;
 	int current_covar=0;
 	curandState localState;
 
-	if (idx < N) {  
+	if (idx < N) {
 		voxel =  vox[idx];
 		IDX   = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
 		bwhtmat = beta*WM[IDX];
-		
+
 		for (int ii=0;ii<NCOVAR;ii++) {
 			mean[ii] = 0;
 			//alph[ii] = alpha[ii];
@@ -428,32 +428,32 @@ __global__ void Spat_Coef(float *covar,float *covF,float *fix,float *alpha,float
 				var[jj + ii*NCOVAR] = 0;
 		}
 		for (int ii=0;ii<NCOV_FIX;ii++)
-			fixed[ii] =  fix[ii]; 
+			fixed[ii] =  fix[ii];
 //	}
-	
+
 	for (int isub = 0; isub < NSUBS; isub += localsize ) {
 		if ((isub+localsize) > NSUBS)
 		 	localsize = NSUBS - isub;
-				
+
 		if ((isub+localid) < NSUBS) {
-			for (int j=0;j<NCOVAR;j++) 
+			for (int j=0;j<NCOVAR;j++)
 				shared[localid + j*localsize] = covar[j*NSUBS + (isub+localid)];
 		}
 		__syncthreads();
-				
+
 		for (int j=0;j<localsize;j++) {
-				
+
 			float ZZ = Z[(isub+j)*TOTVOX+IDX];
 			float phi = Phi[(isub+j)*TOTVOX+IDX];
 			tmp = ZZ - bwhtmat;
 		//	for (int ii=0;ii<NCOVAR;ii++) {
-		//		tmp -= alph[ii] *shared[j + ii*localsize]; 
+		//		tmp -= alph[ii] *shared[j + ii*localsize];
 		//	}
 			for (int ii=0;ii<NCOV_FIX;ii++) {
-				tmp -= fixed[ii] * covF[(isub+j)*NCOV_FIX + ii]; 
+				tmp -= fixed[ii] * covF[(isub+j)*NCOV_FIX + ii];
 			}
 			tmp *= phi;
-			for (current_covar=0;current_covar<NCOVAR;current_covar++) {	
+			for (current_covar=0;current_covar<NCOVAR;current_covar++) {
 				mean[current_covar] += shared[j + current_covar*localsize]*tmp;
 			}
 			for (int ii=0;ii<NCOVAR;ii++) {
@@ -463,13 +463,13 @@ __global__ void Spat_Coef(float *covar,float *covF,float *fix,float *alpha,float
 				}
 			}
 
-		}		
+		}
 		__syncthreads();
 	}
 
 //	if (idx < N) {
 		localState = state[idx];
-		for (current_covar=0;current_covar<NCOVAR;current_covar++) {	
+		for (current_covar=0;current_covar<NCOVAR;current_covar++) {
 			sumV[current_covar]  = SpatCoef[(current_covar*TOTVOXp+dIdxSC[voxel-1])]
 			      				 + SpatCoef[(current_covar*TOTVOXp+dIdxSC[voxel+1])]
 			      				 + SpatCoef[(current_covar*TOTVOXp+dIdxSC[voxel-(NROW+2)])]
@@ -479,7 +479,7 @@ __global__ void Spat_Coef(float *covar,float *covF,float *fix,float *alpha,float
 		}
 /**** fix up dtmpvar and dPrec matrices *****/
 		for (int ii=0;ii<NCOVAR;ii++) {
-			for (int jj=0;jj<NCOVAR;jj++) {	
+			for (int jj=0;jj<NCOVAR;jj++) {
 				mean[ii] += dPrec[jj + ii*NCOVAR]*sumV[jj];
 //				var[jj + ii*NCOVAR] = dtmpvar[jj + ii*NCOVAR]*Phi[IDX] + nbrs[idx]*dPrec[jj + ii*NCOVAR];
 //				var[jj + ii*NCOVAR] += nbrs[idx]*dPrec[jj + ii*NCOVAR];
@@ -487,27 +487,27 @@ __global__ void Spat_Coef(float *covar,float *covF,float *fix,float *alpha,float
 		}
 		float ss = nbrs[idx];
 		for (int ii=0;ii<NCOVAR;ii++) {
-			for (int jj=ii;jj<NCOVAR;jj++) {	
+			for (int jj=ii;jj<NCOVAR;jj++) {
 				var[jj + ii*NCOVAR] += ss*dPrec[jj + ii*NCOVAR];
 				var[ii + jj*NCOVAR] = var[jj + ii*NCOVAR];
 			}
 		}
 
-		// decompose and invert var 
+		// decompose and invert var
 		cholesky_decompGPU(var,NCOVAR);
 		cholesky_invertGPU(NCOVAR, var);
-		
+
 		for (int ii=0;ii<NCOVAR;ii++) {
 			tmp2[ii] = 0;
 			for (int jj=0;jj<NCOVAR;jj++)
 				tmp2[ii] += var[jj + ii*NCOVAR]*mean[jj];
-		}			
+		}
 		// draw MVN and with mean tmp2 and variance var --- result in mean;
 		rmvnormGPU(mean,var,NCOVAR,tmp2,&localState,0);
-			
-		for (int ii=0;ii<NCOVAR;ii++) 
+
+		for (int ii=0;ii<NCOVAR;ii++)
 			SpatCoef[(ii*TOTVOXp+IDXSC)] = mean[ii];
-	
+
 		state[idx] = localState;
 	}
 }
@@ -517,17 +517,17 @@ __global__ void sub_mean(float *SpatCoef,const int N,int * vox,float cmean,int *
 {
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int stride = blockDim.x*gridDim.x;
-	
+
 	float mean;
 	int voxel,IDXSC;
-	
+
 	mean = cmean;
-	
-	while (idx < N) { 
+
+	while (idx < N) {
 		voxel = vox[idx];
 		IDXSC = dIdxSC[voxel];
 		SpatCoef[IDXSC] -= mean;
-				
+
 		idx += stride;
 	}
 }
@@ -538,16 +538,16 @@ void updateSpatCoefGPU(float *covar,float *spatCoef,float *SpatCoefMean,float *S
 	float *d_sum,cmean,*h_sum;
 
 	cudaMemcpyToSymbol(dPrec,SpatCoefPrec,sizeof(float)*NCOVAR*NCOVAR);
-	
+
 	if (MODEL == 1)
 		cudaMemcpyToSymbol(dtmpvar,XXprime,sizeof(float)*NCOVAR*NCOVAR);
-	
-	int thr_per_block = TPB; 
+
+	int thr_per_block = TPB;
 	int shared_memory = (NCOVAR * thr_per_block) * sizeof(float);
 	for (int i=0;i<2;i++) {
 		int blck_per_grid = (INDX[i].hostN+thr_per_block-1)/thr_per_block;
-		
-		if (MODEL != 1) {	
+
+		if (MODEL != 1) {
 			Spat_Coef<<<blck_per_grid,thr_per_block,shared_memory>>>(deviceCovar,deviceCov_Fix,deviceFixMean,deviceAlphaMean,deviceZ,
 			devicePhi,deviceWM,deviceSpatCoef,beta,INDX[i].deviceNBRS,INDX[i].deviceVox,NSUBS,NROW,NCOL,NSUBTYPES,NCOVAR,NCOV_FIX,INDX[i].hostN,TOTVOXp,TOTVOX,devStates,deviceIdx,deviceIdxSC);
 			if ((err = cudaGetLastError()) != cudaSuccess) {printf("Error %s %s\n",cudaGetErrorString(err)," in Spat_Coef");exit(0);}
@@ -558,21 +558,21 @@ void updateSpatCoefGPU(float *covar,float *spatCoef,float *SpatCoefMean,float *S
 		}
 
 	}
-	
+
 
 	for (this_one=0;this_one<NCOVAR;this_one++) {
 		cudaMalloc((void **)&d_sum,BPG*sizeof(float));
 
 		reduce<<<BPG, NN >>>(&deviceSpatCoef[this_one*TOTVOXp],d_sum,TOTVOXp);
 
-		h_sum = (float *)calloc(BPG,sizeof(float));		
-	
+		h_sum = (float *)calloc(BPG,sizeof(float));
+
 		cudaMemcpy(h_sum,d_sum,BPG*sizeof(float),cudaMemcpyDeviceToHost);
-	
+
 		cmean = 0;
 		for (int j=0;j<BPG;j++)
 			cmean += h_sum[j];
-			
+
 		free(h_sum);
 		cudaFree(d_sum);
 		cmean /= (float)TOTVOX;
@@ -591,21 +591,21 @@ __global__ void betaMGPU(float *dcovar,float *dcovF,float *dZ,float *dspatCoef,f
 	int cacheIndex = threadIdx.x;
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int stride = blockDim.x*gridDim.x;
-	
+
 	float c = 0;
 	float y,t;
 	float temp = 0;
 	float SC[20];
 	float mean=0;
 	int isub,ii,voxel,IDX,IDXSC;
-	while (idx < N) { 
+	while (idx < N) {
 		voxel = vox[idx];
 		IDX = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
 
 		for (ii=0;ii<NCOVAR;ii++)
 			SC[ii] = /*dalpha[ii] +*/ dspatCoef[ii*TOTVOXp+IDXSC];
-			
+
 		mean = 0;
 		for (isub=0;isub<NSUBS;isub++) {
 			mean += dZ[isub*TOTVOX+IDX];
@@ -614,29 +614,29 @@ __global__ void betaMGPU(float *dcovar,float *dcovF,float *dZ,float *dspatCoef,f
 			for (ii=0;ii<NCOV_FIX;ii++)
 				mean -= fix[ii]*dcovF[ii*NSUBS+isub];
 		}
-		
+
 		y = mean * dWM[IDX] - c;
 		t = temp + y;
 		c = (t - temp) - y;
-		temp = t;		
-		
+		temp = t;
+
 		idx += stride;
 	}
 
 	cache[cacheIndex] = temp;
-	
+
 	__syncthreads();
-	
+
 	int i = (blockDim.x >> 1);
 	while (i != 0) {
-		if (cacheIndex < i) 
+		if (cacheIndex < i)
 			cache[cacheIndex] += cache[cacheIndex + i];
-			
+
 		__syncthreads();
-		i = i >> 1;	
+		i = i >> 1;
 	}
-	
-	if (cacheIndex == 0) 
+
+	if (cacheIndex == 0)
 		dmean[blockIdx.x] = cache[0];
 }
 
@@ -647,36 +647,36 @@ __global__ void betaVGPU(float *dWM,const int N,int *vox,float *dvar,int *dIdx)
 	int cacheIndex = threadIdx.x;
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int stride = blockDim.x*gridDim.x;
-	
+
 	float c = 0;
 	float y,t;
 	float temp = 0;
 
 	int voxel,IDX;
-	while (idx < N) { 
+	while (idx < N) {
 		voxel = vox[idx];
 		IDX = dIdx[voxel];
 		y = dWM[IDX]*dWM[IDX] - c;
 		t = temp + y;
 		c = (t - temp) - y;
-		temp = t;		
+		temp = t;
 
 		idx += stride;
 	}
 
 	cache[cacheIndex] = temp;
-	
+
 	__syncthreads();
-	
+
 	int i = (blockDim.x >> 1);
 	while (i != 0) {
 		if (cacheIndex < i) {
 			cache[cacheIndex] += cache[cacheIndex + i];
 		}
 		__syncthreads();
-		i = i >> 1;	
+		i = i >> 1;
 	}
-	
+
 	if (cacheIndex == 0) {
 		dvar[blockIdx.x] = cache[0];
 	}
@@ -687,12 +687,12 @@ void updateBetaGPU(float *beta,float *dZ,float *dPhi,float *dalpha,float *dWM,fl
 {
 	float *dmean,*dvar,*hmean,*hvar;
 	float mean,var,tmp;
-	
+
 	hmean = (float *)calloc(BPG,sizeof(float));
 	hvar = (float *)calloc(BPG,sizeof(float));
 	cudaMalloc((void **)&dmean,BPG*sizeof(float)) ;
 	cudaMalloc((void **)&dvar,BPG*sizeof(float)) ;
-	
+
 	mean = var = 0;
 	for (int i=0;i<2;i++) {
 		betaMGPU<<<BPG,NN>>>(dcovar,deviceCov_Fix,dZ,dspatCoef,deviceFixMean,deviceAlphaMean,deviceWM,INDX[i].hostN,TOTVOXp,NSUBS,NSUBTYPES,NCOVAR,NCOV_FIX,TOTVOX,INDX[i].deviceVox,dmean,deviceIdx,deviceIdxSC);
@@ -716,7 +716,7 @@ void updateBetaGPU(float *beta,float *dZ,float *dPhi,float *dalpha,float *dWM,fl
 	mean *= var;
 	tmp = (float)rnorm((double)mean,sqrt((double)var),seed);
 	*beta = tmp;
-	
+
 	cudaFree(dmean);
 	cudaFree(dvar);
 	free(hmean);
@@ -729,24 +729,24 @@ __global__ void alphaGPU(float *dcovar,float *dZ,float *dspatCoef,float *dWM,flo
 	int cacheIndex = threadIdx.x;
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int stride = blockDim.x*gridDim.x;
-	
+
 	float c=0;
 	float y,t;
 	float temp = 0;
 	float SC[20];
 	float tmp,tmp2;
 	int isub,ii,voxel,IDX,IDXSC;
-	
-	while (idx < N) { 
+
+	while (idx < N) {
 		voxel = vox[idx];
 		IDX = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
-		
+
 		float WM = beta*dWM[IDX];
-		
-		for (ii=0;ii<NCOVAR;ii++) 
+
+		for (ii=0;ii<NCOVAR;ii++)
 			SC[ii] = dspatCoef[ii*TOTVOXp+IDXSC];
-		
+
 		tmp = 0;
 		for (isub=0;isub<NSUBS;isub++) {
 			tmp2 = dZ[isub*TOTVOX+IDX] - WM;
@@ -755,29 +755,29 @@ __global__ void alphaGPU(float *dcovar,float *dZ,float *dspatCoef,float *dWM,flo
 			tmp2 *= dcovar[current_cov*NSUBS+isub];
 			tmp += tmp2;
 		}
-				
+
 		y = tmp - c;
 		t = temp + y;
 		c = (t - temp) - y;
-		temp = t;		
+		temp = t;
 
 		idx += stride;
 	}
 
 	cache[cacheIndex] = temp;
-	
+
 	__syncthreads();
-	
+
 	int i = (blockDim.x >> 1);
 	while (i != 0) {
-		if (cacheIndex < i) 
+		if (cacheIndex < i)
 			cache[cacheIndex] += cache[cacheIndex + i];
-			
+
 		__syncthreads();
-		i = i >> 1;	
+		i = i >> 1;
 	}
-	
-	if (cacheIndex == 0) 
+
+	if (cacheIndex == 0)
 		dmean[blockIdx.x] = cache[0];
 }
 
@@ -811,7 +811,7 @@ void updateAlphaMeanGPU(float *alphaMean,float Prec,float *dcovar,float *dZ,floa
 			for (int j=0;j<BPG;j++)
 				tmpmean[icovar] += (double)hmean[j];
 		}
-		
+
 	}
 
 	cudaFree(dmean);
@@ -822,17 +822,17 @@ void updateAlphaMeanGPU(float *alphaMean,float Prec,float *dcovar,float *dZ,floa
 		for (int j=0;j<NCOVAR;j++)
 			mean[i] += V[j + i*NCOVAR]*tmpmean[j];
 	}
-	
+
 	rmvnorm(tmpmean,V,NCOVAR,mean,seed,0);
-		
+
 	for (int i=0;i<NCOVAR;i++)
 		alphaMean[i] = (float)tmpmean[i];
-	
+
 	cudaMemcpy(deviceAlphaMean,alphaMean,NCOVAR*sizeof(float),cudaMemcpyHostToDevice);
 
 	free(tmpmean);
 	free(mean);
-	free(V);	
+	free(V);
 
 }
 
@@ -842,24 +842,24 @@ __global__ void fixGPU(float *dcovF,float *dcovar,float *dZ,float *dspatCoef,flo
 	int cacheIndex = threadIdx.x;
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int stride = blockDim.x*gridDim.x;
-	
+
 	float c=0;
 	float y,t;
 	float temp = 0;
 	float SC[20];
 	float tmp,tmp2;
 	int isub,ii,voxel,IDX,IDXSC;
-	
-	while (idx < N) { 
+
+	while (idx < N) {
 		voxel = vox[idx];
 		IDX = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
-		
+
 		float WM = beta*dWM[IDX];
-		
-		for (ii=0;ii<NCOVAR;ii++) 
+
+		for (ii=0;ii<NCOVAR;ii++)
 			SC[ii] = dspatCoef[ii*TOTVOXp+IDXSC];
-		
+
 		tmp = 0;
 		for (isub=0;isub<NSUBS;isub++) {
 			tmp2 = dZ[isub*TOTVOX+IDX] - WM;
@@ -868,29 +868,29 @@ __global__ void fixGPU(float *dcovF,float *dcovar,float *dZ,float *dspatCoef,flo
 			tmp2 *= dcovF[current_cov*NSUBS+isub];
 			tmp += tmp2;
 		}
-				
+
 		y = tmp - c;
 		t = temp + y;
 		c = (t - temp) - y;
-		temp = t;		
+		temp = t;
 
 		idx += stride;
 	}
 
 	cache[cacheIndex] = temp;
-	
+
 	__syncthreads();
-	
+
 	int i = (blockDim.x >> 1);
 	while (i != 0) {
-		if (cacheIndex < i) 
+		if (cacheIndex < i)
 			cache[cacheIndex] += cache[cacheIndex + i];
-			
+
 		__syncthreads();
-		i = i >> 1;	
+		i = i >> 1;
 	}
-	
-	if (cacheIndex == 0) 
+
+	if (cacheIndex == 0)
 		dmean[blockIdx.x] = cache[0];
 }
 
@@ -924,7 +924,7 @@ void updatefixMeanGPU(float *fixMean,float Prec,float *dcovar,float *dZ,float *d
 			for (int j=0;j<BPG;j++)
 				tmpmean[icovar] += (double)hmean[j];
 		}
-		
+
 	}
 
 	cudaFree(dmean);
@@ -935,17 +935,17 @@ void updatefixMeanGPU(float *fixMean,float Prec,float *dcovar,float *dZ,float *d
 		for (int j=0;j<NCOV_FIX;j++)
 			mean[i] += V[j + i*NCOV_FIX]*tmpmean[j];
 	}
-	
+
 	rmvnorm(tmpmean,V,NCOV_FIX,mean,seed,0);
-		
+
 	for (int i=0;i<NCOV_FIX;i++)
 		fixMean[i] = (float)tmpmean[i];
-	
+
 	cudaMemcpy(deviceFixMean,fixMean,NCOV_FIX*sizeof(float),cudaMemcpyHostToDevice);
 
 	free(tmpmean);
 	free(mean);
-	free(V);	
+	free(V);
 
 }
 
@@ -956,18 +956,18 @@ __global__ void Spat_Coef_Prec(float *SpatCoef1,float *SpatCoef2,const int N,con
 	int cacheIndex = threadIdx.x;
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int stride = blockDim.x*gridDim.x;
-	
+
 	float c = 0;
 	float y,t;
 	float temp = 0;
-	
+
 	float tmp,SC1,SC2,SCt1,SCt2;
 	int voxel,tst,IDXSC;
-	while (idx < N) { 
+	while (idx < N) {
 		voxel =  vox[idx];
 		IDXSC = dIdxSC[voxel];
 		y = 0;
-		
+
 		SC1 = SpatCoef1[IDXSC];
 		SC2 = SpatCoef2[IDXSC];
 		SCt1 = SpatCoef1[dIdxSC[voxel+1]];
@@ -991,23 +991,23 @@ __global__ void Spat_Coef_Prec(float *SpatCoef1,float *SpatCoef2,const int N,con
 		y -= c;
 		t = temp + y;
 		c = (t - temp) -y;
-		temp = t;		
-				
+		temp = t;
+
 		idx += stride;
-	}   
-	
+	}
+
 	cache[cacheIndex] = temp;
-	
+
 	__syncthreads();
-	
+
 	int i = (blockDim.x >> 1);
 	while (i != 0) {
 		if (cacheIndex < i)
 			cache[cacheIndex] += cache[cacheIndex + i];
 		__syncthreads();
-		i = i >> 1;	
+		i = i >> 1;
 	}
-	
+
 	if (cacheIndex == 0)
 		dbeta[blockIdx.x] = cache[0];
 }
@@ -1018,13 +1018,13 @@ void updateSpatCoefPrecGPU_Laplace(float *SpatCoefPrec,unsigned long *seed)
 	double *var;
 	float *dbeta;
 	double betaSqr = 2.0;//0.2;
-	double tau;
+	//double tau;
 
 	var = (double *)calloc(NCOVAR*NCOVAR,sizeof(double));
 	hbeta = (float*)calloc(BPG,sizeof(float));
 	cudaMalloc((void **)&dbeta,BPG*sizeof(float));
 	cudaMemset(dbeta,0,BPG*sizeof(float));
-	
+
 	for (int ii=0;ii<NCOVAR;ii++) {
 //		for (int jj=0;jj<=ii;jj++) {  // filling in the lower triangular part of the matrix
 			var[ii + ii*NCOVAR] = 0;
@@ -1032,7 +1032,7 @@ void updateSpatCoefPrecGPU_Laplace(float *SpatCoefPrec,unsigned long *seed)
 				Spat_Coef_Prec<<<BPG,NN>>>(&(deviceSpatCoef[ii*TOTVOXp]),&(deviceSpatCoef[ii*TOTVOXp]),INDX[i].hostN,NROW,NCOL,INDX[i].deviceVox,dbeta,deviceIdxSC);
 				if ((err = cudaGetLastError()) != cudaSuccess) {printf("Error %s %s\n",cudaGetErrorString(err)," in Spat_Coef_Prec");exit(0);}
 				CUDA_CALL( cudaMemcpy(hbeta,dbeta,BPG*sizeof(float),cudaMemcpyDeviceToHost) );
-				for (int j=0;j<BPG;j++) 
+				for (int j=0;j<BPG;j++)
 					var[ii + ii*NCOVAR] += (double)hbeta[j];
 			}
 //			var[ii + jj*NCOVAR] = var[jj + ii*NCOVAR];
@@ -1040,7 +1040,7 @@ void updateSpatCoefPrecGPU_Laplace(float *SpatCoefPrec,unsigned long *seed)
 			SpatCoefPrec[ii + ii*NCOVAR] = rGIG(((double)TOTVOX-3.0)/2.0,var[ii+ii*NCOVAR],betaSqr,seed);
 //		printf("%f %f\n",SpatCoefPrec[ii + ii*NCOVAR],var[ii+ii*NCOVAR]);
 //		}
-	}	
+	}
 //	printf("\n\n");
 	free(hbeta);
 	cudaFree(dbeta);
@@ -1048,11 +1048,11 @@ void updateSpatCoefPrecGPU_Laplace(float *SpatCoefPrec,unsigned long *seed)
 	cholesky_decomp(var, NCOVAR);
 	cholesky_invert(NCOVAR, var);
 	cholesky_decomp(var,NCOVAR);
-	
+
 	double *tmp = (double *)calloc(NCOVAR*NCOVAR,sizeof(double));
 	rwishart2(tmp,var,NCOVAR,TOTVOX-1,seed);
 
-	for (int ii=0;ii<NCOVAR;ii++) 
+	for (int ii=0;ii<NCOVAR;ii++)
 		for (int jj=0;jj<=ii;jj++)   // filling in the lower triangular part of the matrix
 			SpatCoefPrec[jj + ii*NCOVAR] = SpatCoefPrec[ii + jj*NCOVAR] = (float)tmp[jj + ii*NCOVAR];
 
@@ -1071,7 +1071,7 @@ void updateSpatCoefPrecGPU(float *SpatCoefPrec,unsigned long *seed)
 	hbeta = (float*)calloc(BPG,sizeof(float));
 	cudaMalloc((void **)&dbeta,BPG*sizeof(float));
 	cudaMemset(dbeta,0,BPG*sizeof(float));
-	
+
 	for (int ii=0;ii<NCOVAR;ii++) {
 		for (int jj=0;jj<=ii;jj++) {  // filling in the lower triangular part of the matrix
 //			var[ii + jj*NCOVAR] = 0;
@@ -1079,14 +1079,14 @@ void updateSpatCoefPrecGPU(float *SpatCoefPrec,unsigned long *seed)
 				Spat_Coef_Prec<<<BPG,NN>>>(&(deviceSpatCoef[ii*TOTVOXp]),&(deviceSpatCoef[jj*TOTVOXp]),INDX[i].hostN,NROW,NCOL,INDX[i].deviceVox,dbeta,deviceIdxSC);
 				if ((err = cudaGetLastError()) != cudaSuccess) {printf("Error %s %s\n",cudaGetErrorString(err)," in Spat_Coef_Prec");exit(0);}
 				CUDA_CALL( cudaMemcpy(hbeta,dbeta,BPG*sizeof(float),cudaMemcpyDeviceToHost) );
-				for (int j=0;j<BPG;j++) 
+				for (int j=0;j<BPG;j++)
 					var[jj + ii*NCOVAR] += (double)hbeta[j];
 			}
 			var[ii + jj*NCOVAR] = var[jj + ii*NCOVAR];
 			if (ii==jj) var[ii + ii*NCOVAR] += 1;
 		}
-	}	
-	
+	}
+
 	free(hbeta);
 	cudaFree(dbeta);
 /*	for (int ii=0;ii<NCOVAR;ii++) {
@@ -1095,15 +1095,15 @@ void updateSpatCoefPrecGPU(float *SpatCoefPrec,unsigned long *seed)
 		}
 		printf("\n");
 	}
-*/	
+*/
 	cholesky_decomp(var, NCOVAR);
 	cholesky_invert(NCOVAR, var);
 	cholesky_decomp(var,NCOVAR);
-	
+
 	double *tmp = (double *)calloc(NCOVAR*NCOVAR,sizeof(double));
 	rwishart2(tmp,var,NCOVAR,TOTVOX+20-1,seed);
 
-	for (int ii=0;ii<NCOVAR;ii++) 
+	for (int ii=0;ii<NCOVAR;ii++)
 		for (int jj=0;jj<=ii;jj++)   // filling in the lower triangular part of the matrix
 			SpatCoefPrec[jj + ii*NCOVAR] = SpatCoefPrec[ii + jj*NCOVAR] = (float)tmp[jj + ii*NCOVAR];
 
@@ -1118,8 +1118,8 @@ __device__ float truncNormLeft(float a,curandState *state)
 	int stop;
 //	double rnorm(double,double,unsigned long *);
 //	double kiss(unsigned long *);
-	
-	
+
+
 	if (a<0.0f)
 	{
 		stop=0;
@@ -1141,8 +1141,8 @@ __device__ float truncNormLeft(float a,curandState *state)
 			else stop=0;
 		}
 	}
-	
-	
+
+
 	return(x);
 }
 
@@ -1153,7 +1153,7 @@ __device__ float truncNormGPU(float mu,float std,float u, float v,curandState *s
 	 (Robert, Stat&Computing, 1995)        ____________*/
 	float x,a,b,boun,boo;
 	int stop;
-	
+
 	u = (u-mu)/std;
 	v = (v-mu)/std;
 	if (v<0)
@@ -1181,8 +1181,8 @@ __device__ float truncNormGPU(float mu,float std,float u, float v,curandState *s
 			boo=b*b;
 		if (a>0.0f)
 			boo=a*a;
-		
-		
+
+
 		stop=0;
 		while (stop==0)
 		{
@@ -1200,7 +1200,7 @@ __device__ float truncNormGPU(float mu,float std,float u, float v,curandState *s
 __device__ inline float discrete_N(int n,float *ChiSqHist,curandState *state)
 {
   float U;
- 
+
   U = curand_uniform(state);
   for (int i=0;i<n;i++) {
 	if (U <= ChiSqHist[i]) {
@@ -1255,9 +1255,9 @@ __device__ float  sgammaGPU(float a, curandState *state) {
 	const float sqrt32 = 5.65685424949238f;
 	float sgamma,s2,s,d,t,x,u,r,q0,b,si,c,v,q,e,w,p;
 
-   if(a == aa) 
+   if(a == aa)
 		goto S2;
-    if(a < 1.0f) 
+    if(a < 1.0f)
 		goto S13;
 
 //S1: // STEP  1:  RECALCULATIONS OF S2,S,D IF A HAS CHANGED
@@ -1265,17 +1265,17 @@ __device__ float  sgammaGPU(float a, curandState *state) {
     s2 = a-0.5f;
     s = sqrtf(s2);
     d = sqrt32-12.0f*s;
-	
+
 S2: // STEP  2:  T=STANDARD NORMAL DEVIATE,	 X=(S,1/2)-NORMAL DEVIATE.	 IMMEDIATE ACCEPTANCE (I)
     t = curand_normal(state);
     x = s+0.5f*t;
     sgamma = x*x;
-    if(t >= 0.0f) 
+    if(t >= 0.0f)
 		return sgamma;
 
 //S3: // STEP  3:  U= 0,1 -UNIFORM SAMPLE. SQUEEZE ACCEPTANCE (S)
     u = curand_uniform(state);
-    if(d*u <= t*t*t) 
+    if(d*u <= t*t*t)
 		return sgamma;
 
 //S4: // STEP  4:  RECALCULATIONS OF Q0,B,SI,C IF NECESSARY
@@ -1296,17 +1296,17 @@ S2: // STEP  2:  T=STANDARD NORMAL DEVIATE,	 X=(S,1/2)-NORMAL DEVIATE.	 IMMEDIAT
 		else {
 			b = 1.77f;
 			si = 0.75f;
-			c = 0.1515f/s;			
+			c = 0.1515f/s;
 		}
 	}
 
 //S5: //  NO QUOTIENT TEST IF X NOT POSITIVE
-    if(x <= 0.0f) 
+    if(x <= 0.0f)
 		goto S8;
-	
+
 //S6: // CALCULATION OF V AND QUOTIENT Q
     v = t/(s+s);
-    if(fabsf(v) > 0.25f) 
+    if(fabsf(v) > 0.25f)
 		q = q0-s*t+0.25f*t*t+(s2+s2)*log1pf(v);
 	else
 		q = q0+0.5f*t*t*v*(a1+v*(a2+v*(a3+v*(a4+v*(a5+v*(a6+v*(a7+v*(a8+v*a9))))))));
@@ -1321,12 +1321,12 @@ S8: // E=STANDARD EXPONENTIAL DEVIATE  U= 0,1 -UNIFORM DEVIATE 	 T=(B,SI)-DOUBLE
     t = b+fsignfGPU(si*e,u);
 
 //S9: //   REJECTION IF T .LT. TAU(1) = -.71874483771719
-	if(t <= -0.71874483771719f) 
+	if(t <= -0.71874483771719f)
 		goto S8;
 
 //S10: // CALCULATION OF V AND QUOTIENT Q
 	v = t/(s+s);
-	if(fabsf(v) > 0.25f) 
+	if(fabsf(v) > 0.25f)
 		q = q0-s*t+0.25f*t*t+(s2+s2)*log1pf(v);
 	else
 		q = q0+0.5f*t*t*v*(a1+v*(a2+v*(a3+v*(a4+v*(a5+v*(a6+v*(a7+v*(a8+v*a9))))))));
@@ -1334,33 +1334,33 @@ S8: // E=STANDARD EXPONENTIAL DEVIATE  U= 0,1 -UNIFORM DEVIATE 	 T=(B,SI)-DOUBLE
 //S11: // HAT ACCEPTANCE (H) (IF Q NOT POSITIVE GO TO STEP 8)
 	if (q <= 0.5f)
 		w = q*(e1+q*(e2+q*(e3+q*(e4+q*(e5+q*(e6+q*e7))))));
-	else 
+	else
 		w = expf(q)-1.0f;
-   if(q <= 0.0f || c*fabs(u) > w*expf(e-0.5f*t*t)) 
+   if(q <= 0.0f || c*fabs(u) > w*expf(e-0.5f*t*t))
 		goto S8;
-//S12: 
+//S12:
     x = s+0.5f*t;
     sgamma = x*x;
     return sgamma;
-	
+
 S13: // ALTERNATE METHOD FOR PARAMETERS A BELOW 1  (.3678794=EXP(-1.))
     aa = 0.0f;
     b = 1.0f+0.3678794f*a;
 
 S14:
     p = b*curand_uniform(state);
-    if(p >= 1.0f) 
+    if(p >= 1.0f)
 		goto S15;
     sgamma = expf(logf(p)/ a);
-    if(rexpGPU(1.0f,state) < sgamma) 
+    if(rexpGPU(1.0f,state) < sgamma)
 		goto S14;
     return sgamma;
 
 S15:
     sgamma = -logf((b-p)/ a);
-    if(rexpGPU(1.0f,state) < (1.0f-a)*logf(sgamma)) 
+    if(rexpGPU(1.0f,state) < (1.0f-a)*logf(sgamma))
 		goto S14;
-    return sgamma;	
+    return sgamma;
 
 }
 
@@ -1369,9 +1369,9 @@ __global__ void Z_GPU1(float *dZ,unsigned char *data,float *covar,float *covarF,
 {
 	extern __shared__ float shared[];
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
-	int localsize = blockDim.x;  
-	int localid = threadIdx.x; 
-	
+	int localsize = blockDim.x;
+	int localid = threadIdx.x;
+
 	float mean[2000];
 	float tmp=0;
 	float SC[20];
@@ -1382,9 +1382,9 @@ __global__ void Z_GPU1(float *dZ,unsigned char *data,float *covar,float *covarF,
 		voxel =  vox[idx];
 		IDX   = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
-			
+
 		tmp = beta*WM[IDX];
-	
+
 		for (int ii=0;ii<NCOVAR;ii++)
 			SC[ii] = /*alpha[ii] +*/ SpatCoef[ii*TOTVOXp+IDXSC];
 	}
@@ -1392,30 +1392,30 @@ __global__ void Z_GPU1(float *dZ,unsigned char *data,float *covar,float *covarF,
 	for (int isub = 0; isub < NSUBS; isub += localsize ) {
 		if ((isub+localsize) > NSUBS)
 			localsize = NSUBS - isub;
-				
+
 		if ((isub+localid) < NSUBS) {
-			for (int j=0;j<NCOVAR;j++) 
+			for (int j=0;j<NCOVAR;j++)
 //				shared[localid + j*localsize] = covar[(isub+localid)*NCOVAR + j];
 				shared[localid + j*localsize] = covar[j*NSUBS + (isub+localid)];
 		}
 		__syncthreads();
-				
+
 		for (int j=0;j<localsize;j++) {
-			mean[isub+j] = tmp;	
+			mean[isub+j] = tmp;
 			for (int ii=0;ii<NCOVAR;ii++)
 				mean[isub+j] += SC[ii]*shared[j + ii*localsize];
 			for (int ii=0;ii<NCOV_FIX;ii++)
 				mean[isub+j] += fix[ii]*covarF[(isub+j)*NCOV_FIX + ii];
-		}		
+		}
 		__syncthreads();
 	}
 
 	if (idx < N) {
 		float2 lim[2];
 		lim[0].x = -500.0f;
-		lim[0].y = -0.000001f; 
+		lim[0].y = -0.000001f;
 		lim[1].x =  0.000001f;
-		lim[1].y = 500.0f; 
+		lim[1].y = 500.0f;
 		localState = state[idx];
 		for (int isub=0;isub<NSUBS;isub++) {
 			int itmp = (int)data[isub*TOTVOX+IDX];
@@ -1431,9 +1431,9 @@ __global__ void Z_GPU2(float *dZ,unsigned char *data,float *covar,float *covarF,
 {
 	extern __shared__ float shared[];
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
-	int localsize = blockDim.x;  
-	int localid = threadIdx.x; 
-	
+	int localsize = blockDim.x;
+	int localid = threadIdx.x;
+
 	float a = alp;
 	float mean[2000];
 	float tmp=0;
@@ -1441,13 +1441,13 @@ __global__ void Z_GPU2(float *dZ,unsigned char *data,float *covar,float *covarF,
 	int voxel=0,IDX=0,IDXSC=0;
 	curandState localState;
 
-	if (idx < N) {  
+	if (idx < N) {
 		voxel =  vox[idx];
 		IDX   = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
-			
+
 		tmp = beta*WM[IDX];
-	
+
 		for (int ii=0;ii<NCOVAR;ii++)
 			SC[ii] = /*alpha[ii] +*/ SpatCoef[ii*TOTVOXp+IDXSC];
 	}
@@ -1455,46 +1455,46 @@ __global__ void Z_GPU2(float *dZ,unsigned char *data,float *covar,float *covarF,
 	for (int isub = 0; isub < NSUBS; isub += localsize ) {
 		if ((isub+localsize) > NSUBS)
 			localsize = NSUBS - isub;
-				
+
 		if ((isub+localid) < NSUBS) {
-			for (int j=0;j<NCOVAR;j++) 
+			for (int j=0;j<NCOVAR;j++)
 //				shared[localid + j*localsize] = covar[(isub+localid)*NCOVAR + j];
 				shared[localid + j*localsize] = covar[j*NSUBS + (isub+localid)];
 		}
 		__syncthreads();
-				
+
 		for (int j=0;j<localsize;j++) {
-			mean[isub+j] = tmp;	
+			mean[isub+j] = tmp;
 			for (int ii=0;ii<NCOVAR;ii++)
 				mean[isub+j] += SC[ii]*shared[j + ii*localsize];
 			for (int ii=0;ii<NCOV_FIX;ii++)
 				mean[isub+j] += fix[ii]*covarF[(isub+j)*NCOV_FIX + ii];
-		}		
+		}
 		__syncthreads();
 	}
 
 	if (idx < N) {
 		float2 lim[2];
 		lim[0].x = -500.0f;
-		lim[0].y = -0.000001f; 
+		lim[0].y = -0.000001f;
 		lim[1].x =  0.000001f;
-		lim[1].y = 500.0f; 
+		lim[1].y = 500.0f;
 		localState = state[idx];
 		float b;
 		for (int isub=0;isub<NSUBS;isub++) {
 			float Z = dZ[isub*TOTVOX+IDX];
 			float M = mean[isub];
 			float P = rsqrtf(dPhi[isub*TOTVOX+IDX]);
-			
+
 			int itmp = (int)data[isub*TOTVOX+IDX];
 			Z = truncNormGPU(M,P,lim[itmp].x,lim[itmp].y,&localState);
 //			Z = ((float)data[isub*TOTVOX+IDX]-1.0f)*truncNormGPU(fabsf(M),rsqrtf(P),0.0f,500.0f,&localState);
 //			dR[isub*TOTVOX+IDX] += (fabsf(Z - M) > 4.0f);
-			
+
 			b = Z - M;
 			b = (df + b*b)/2.0f;
 			P = sgammaGPU(a,&localState)/b;
-			
+
 			dZ[isub*TOTVOX+IDX] = Z;
 			dPhi[isub*TOTVOX+IDX] = P;
 		}
@@ -1507,9 +1507,9 @@ __global__ void Phi_GPU(float *dZ,unsigned char *data,float *covar,float *covarF
 {
 	extern __shared__ float shared[];
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
-	int localsize = blockDim.x;  
-	int localid = threadIdx.x; 
-	
+	int localsize = blockDim.x;
+	int localid = threadIdx.x;
+
 	const float a = alp;
 	float beta2[2000];
 	float tmp=0;
@@ -1517,13 +1517,13 @@ __global__ void Phi_GPU(float *dZ,unsigned char *data,float *covar,float *covarF
 	int voxel=0,IDX=0,IDXSC=0;
 	curandState localState;
 
-	if (idx < N) {  
+	if (idx < N) {
 		voxel =  vox[idx];
 		IDX   = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
-			
+
 		tmp = beta*WM[IDX];
-	
+
 		for (int ii=0;ii<NCOVAR;ii++)
 			SC[ii] = /*alpha[ii] +*/ SpatCoef[ii*TOTVOXp+IDXSC];
 	}
@@ -1531,21 +1531,21 @@ __global__ void Phi_GPU(float *dZ,unsigned char *data,float *covar,float *covarF
 	for (int isub = 0; isub < NSUBS; isub += localsize ) {
 		if ((isub+localsize) > NSUBS)
 			localsize = NSUBS - isub;
-				
+
 		if ((isub+localid) < NSUBS) {
-			for (int j=0;j<NCOVAR;j++) 
+			for (int j=0;j<NCOVAR;j++)
 //				shared[localid + j*localsize] = covar[(isub+localid)*NCOVAR + j];
 				shared[localid + j*localsize] = covar[j*NSUBS + (isub+localid)];
 		}
 		__syncthreads();
-				
+
 		for (int j=0;j<localsize;j++) {
-			beta2[isub+j] = tmp;	
+			beta2[isub+j] = tmp;
 			for (int ii=0;ii<NCOVAR;ii++)
 				beta2[isub+j] += SC[ii]*shared[j + ii*localsize];
 //			for (int ii=0;ii<NCOV_FIX;ii++)
 //				beta2[isub+j] -= fix[ii]*covarF[(isub+j)*NCOV_FIX + ii];
-		}		
+		}
 		__syncthreads();
 	}
 
@@ -1570,23 +1570,23 @@ void updatePhiGPU(float beta,float *Phi)
 	for (int i=0;i<2;i++)
 		N = (INDX[i].hostN > N) ? INDX[i].hostN:N;
 
-	if (MODEL != 1) {		 
+	if (MODEL != 1) {
 
 		for (int i=0;i<2;i++) {
-			int thr_per_block = TPB2; 
+			int thr_per_block = TPB2;
 			int shared_memory = (NCOVAR * thr_per_block) * sizeof(float);
 			int blck_per_grid = (INDX[i].hostN+thr_per_block-1)/thr_per_block;
-	
+
 			Phi_GPU<<<blck_per_grid,thr_per_block,shared_memory>>>(deviceZ,deviceData,deviceCovar,deviceCov_Fix,deviceFixMean,deviceAlphaMean,
 			deviceWM,deviceSpatCoef,beta,INDX[i].deviceVox,NSUBS,NSUBTYPES,NCOVAR,NCOV_FIX,
 			INDX[i].hostN,TOTVOXp,TOTVOX,devStates,deviceIdx,deviceIdxSC,sqrt2,devicePhi,alpha,t_df);
 			if ((err = cudaGetLastError()) != cudaSuccess) {printf("Error %s %s\n",cudaGetErrorString(err)," in Phi_GPU");exit(0);}
 		}
-		
+
 	}
 }
 
-void updatePhi(unsigned char *data,float *Z,float *Phi,unsigned char *msk,float beta,float *WM,float *spatCoef,float *covar,unsigned long *seed) 
+void updatePhi(unsigned char *data,float *Z,float *Phi,unsigned char *msk,float beta,float *WM,float *spatCoef,float *covar,unsigned long *seed)
 {
 	double alpha = ((double)t_df + 1)/2;
 	unsigned char d;
@@ -1618,7 +1618,7 @@ void updatePhi(unsigned char *data,float *Z,float *Phi,unsigned char *msk,float 
 			}
 		}
 	}
-	CUDA_CALL( cudaMemcpy(devicePhi,Phi,NSUBS*TOTVOX*sizeof(float),cudaMemcpyHostToDevice) );	
+	CUDA_CALL( cudaMemcpy(devicePhi,Phi,NSUBS*TOTVOX*sizeof(float),cudaMemcpyHostToDevice) );
 	printf("beta2_max = %lf %lf %lf\t %lf %d\n",mx,mZ,mtmp,mZ2,(int)d);fflush(NULL);
 }
 
@@ -1632,7 +1632,7 @@ void updateZGPU(unsigned char *data,float beta,unsigned long *seed)
 	for (int i=0;i<2;i++)
 		N = (INDX[i].hostN > N) ? INDX[i].hostN:N;
 
-	if (MODEL != 1) {		 
+	if (MODEL != 1) {
 //		rchisq = (float *)malloc(N*sizeof(float));
 //		cudaMalloc((void **)&drchisq,N*sizeof(float));
 
@@ -1640,14 +1640,14 @@ void updateZGPU(unsigned char *data,float beta,unsigned long *seed)
 //			for (int j=0;j<INDX[i].hostN;j++)
 //				rchisq[j] = rgamma(dfdiv2,dfdiv2,seed);
 //			cudaMemcpy(drchisq,rchisq,INDX[i].hostN*sizeof(float),cudaMemcpyHostToDevice);
-			int thr_per_block = TPB2; 
+			int thr_per_block = TPB2;
 			int shared_memory = (NCOVAR * thr_per_block) * sizeof(float);
 			int blck_per_grid = (INDX[i].hostN+thr_per_block-1)/thr_per_block;
-	
+
 			Z_GPU2<<<blck_per_grid,thr_per_block,shared_memory>>>(deviceZ,deviceData,deviceCovar,deviceCov_Fix,deviceFixMean,deviceAlphaMean,
 			deviceWM,deviceSpatCoef,beta,INDX[i].deviceVox,NSUBS,NSUBTYPES,NCOVAR,NCOV_FIX,
 			INDX[i].hostN,TOTVOXp,TOTVOX,devStates,deviceIdx,deviceIdxSC,sqrt2,devicePhi,deviceResid,alpha,t_df);
-			if ((err = cudaGetLastError()) != cudaSuccess) {printf("Error %s %s\n",cudaGetErrorString(err)," in Z_GPU2");exit(0);}		
+			if ((err = cudaGetLastError()) != cudaSuccess) {printf("Error %s %s\n",cudaGetErrorString(err)," in Z_GPU2");exit(0);}
 		}
 //		free(rchisq);
 //		cudaFree(drchisq);
@@ -1655,15 +1655,15 @@ void updateZGPU(unsigned char *data,float beta,unsigned long *seed)
 	else {
 
 		for (int i=0;i<2;i++) {
-			int thr_per_block = TPB2; 
+			int thr_per_block = TPB2;
 			int shared_memory = (NCOVAR * thr_per_block) * sizeof(float);
 			int blck_per_grid = (INDX[i].hostN+thr_per_block-1)/thr_per_block;
 
 			Z_GPU1<<<blck_per_grid,thr_per_block,shared_memory>>>(deviceZ,deviceData,deviceCovar,deviceCov_Fix,deviceFixMean,
 			deviceAlphaMean,deviceWM,deviceSpatCoef,beta,INDX[i].deviceVox,NSUBS,NSUBTYPES,NCOVAR,NCOV_FIX,
 			INDX[i].hostN,TOTVOXp,TOTVOX,devStates,deviceIdx,deviceIdxSC,sqrt2,deviceResid);
-			if ((err = cudaGetLastError()) != cudaSuccess) {printf("Error %s %s\n",cudaGetErrorString(err)," in Z_GPU1");exit(0);}		
-	
+			if ((err = cudaGetLastError()) != cudaSuccess) {printf("Error %s %s\n",cudaGetErrorString(err)," in Z_GPU1");exit(0);}
+
 		}
 	}
 }
@@ -1680,15 +1680,15 @@ __device__ inline float dProbSDNormGPU(const float x)
 	const float p  =  0.2316419f;
 	const float c  =  0.39894228f;
 	float t,sgnx,out,y;
-	
+
 	sgnx = copysignf(1.0f,x);
 	y = sgnx*x;
-	
+
 	t = 1.0f / ( 1.0f + p * y );
-		
+
 	out = ((x >= 0.0f) - sgnx*c * expf( -y * y / 2.0f ) * t *
 				( t *( t * ( t * ( t * b5 + b4 ) + b3 ) + b2 ) + b1 ));
-			
+
 	return out;
 }
 
@@ -1696,26 +1696,26 @@ __global__ void ProbLogitGPU(float *prb,float *alpha,float *SpatCoef,float beta,
 {
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int stride = blockDim.x*gridDim.x;
-	
+
 	float x;
-	float bwhtmat=0;
+	//float bwhtmat=0;
 	int voxel,ii,IDX,IDXSC;
-	
-	while (idx < N) { 
+
+	while (idx < N) {
 		voxel =  vox[idx];
 		IDX = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
 
-		bwhtmat = beta*WM[IDX];
-		
+		//bwhtmat = beta*WM[IDX];
+
 		for (ii=0;ii<NSUBTYPES;ii++) {
-//			x = /*alpha[ii] + */ SpatCoef[ii*TOTVOXp+IDXSC] + bwhtmat;	// average covar is zero (covars are centered) 
-																			// so don't need to add in the spatially varying parms	
-//			prb[ii*TOTVOX+IDX] = dProbSDNormGPU(x);								// so don't need to add in the spatially varying parms	
+//			x = /*alpha[ii] + */ SpatCoef[ii*TOTVOXp+IDXSC] + bwhtmat;	// average covar is zero (covars are centered)
+																			// so don't need to add in the spatially varying parms
+//			prb[ii*TOTVOX+IDX] = dProbSDNormGPU(x);								// so don't need to add in the spatially varying parms
 			x = expf(SpatCoef[ii*TOTVOXp+IDXSC]/logit_factor);
 			prb[ii*TOTVOX+IDX] = x/(1.f+x);
 		}
-		
+
 		idx += stride;
 	}
 }
@@ -1724,24 +1724,24 @@ __global__ void ProbSDNormGPU(float *prb,float *alpha,float *SpatCoef,float beta
 {
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int stride = blockDim.x*gridDim.x;
-	
+
 	float x;
 	float bwhtmat=0;
 	int voxel,ii,IDX,IDXSC;
-	
-	while (idx < N) { 
+
+	while (idx < N) {
 		voxel =  vox[idx];
 		IDX = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
 
 		bwhtmat = beta*WM[IDX];
-		
+
 		for (ii=0;ii<NSUBTYPES;ii++) {
-			x = /*alpha[ii] + */ SpatCoef[ii*TOTVOXp+IDXSC] + bwhtmat;	// average covar is zero (covars are centered) 
-																			// so don't need to add in the spatially varying parms	
-			prb[ii*TOTVOX+IDX] = dProbSDNormGPU(x);								// so don't need to add in the spatially varying parms	
+			x = /*alpha[ii] + */ SpatCoef[ii*TOTVOXp+IDXSC] + bwhtmat;	// average covar is zero (covars are centered)
+																			// so don't need to add in the spatially varying parms
+			prb[ii*TOTVOX+IDX] = dProbSDNormGPU(x);								// so don't need to add in the spatially varying parms
 		}
-		
+
 		idx += stride;
 	}
 }
@@ -1751,17 +1751,17 @@ __global__ void ProbLogitGPU_prediction(float *covar,float *covarFix,float *pred
 {
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int stride = blockDim.x*gridDim.x;
-	
+
 	float x,y;
 	float bwhtmat=0;
 	int voxel,ii,IDX,IDXSC;
-	while (idx < N) { 
+	while (idx < N) {
 		voxel =  vox[idx];
 		IDX = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
 
 		bwhtmat = beta*WM[IDX]/logit_factor;
-		
+
 		y = 0;
 		for (ii=NSUBTYPES;ii<NCOVAR;ii++) {
 //			y += (/*alpha[ii] + */SpatCoef[ii*TOTVOXp+IDXSC]/logit_factor)*covar[isub*NCOVAR+ii];
@@ -1770,12 +1770,12 @@ __global__ void ProbLogitGPU_prediction(float *covar,float *covarFix,float *pred
 		for (ii=0;ii<NCOV_FIX;ii++)
 			y += fix[ii]*covarFix[isub*NCOV_FIX+ii]/logit_factor;
 		for (ii=0;ii<NSUBTYPES;ii++) {
-//			x = /*alpha[ii] + */ SpatCoef[ii*TOTVOXp+IDXSC] + bwhtmat + y;	
-//			pred[ii*TOTVOX+IDX] = dProbSDNormGPU(x);									
-			x = expf(SpatCoef[ii*TOTVOXp+IDXSC]/logit_factor + bwhtmat + y);	
-			pred[ii*TOTVOX+IDX] = x/(1.f+x);									
+//			x = /*alpha[ii] + */ SpatCoef[ii*TOTVOXp+IDXSC] + bwhtmat + y;
+//			pred[ii*TOTVOX+IDX] = dProbSDNormGPU(x);
+			x = expf(SpatCoef[ii*TOTVOXp+IDXSC]/logit_factor + bwhtmat + y);
+			pred[ii*TOTVOX+IDX] = x/(1.f+x);
 		}
-		
+
 		idx += stride;
 	}
 }
@@ -1784,17 +1784,17 @@ __global__ void ProbSDNormGPU_prediction(float *covar,float *covarFix,float *pre
 {
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
 	int stride = blockDim.x*gridDim.x;
-	
+
 	float x,y;
 	float bwhtmat=0;
 	int voxel,ii,IDX,IDXSC;
-	while (idx < N) { 
+	while (idx < N) {
 		voxel =  vox[idx];
 		IDX = dIdx[voxel];
 		IDXSC = dIdxSC[voxel];
 
 		bwhtmat = beta*WM[IDX];
-		
+
 		y = 0;
 		for (ii=NSUBTYPES;ii<NCOVAR;ii++) {
 //			y += (/*alpha[ii] + */SpatCoef[ii*TOTVOXp+IDXSC])*covar[isub*NCOVAR+ii];
@@ -1803,10 +1803,10 @@ __global__ void ProbSDNormGPU_prediction(float *covar,float *covarFix,float *pre
 		for (ii=0;ii<NCOV_FIX;ii++)
 			y += fix[ii]*covarFix[isub*NCOV_FIX+ii];
 		for (ii=0;ii<NSUBTYPES;ii++) {
-			x = /*alpha[ii] + */ SpatCoef[ii*TOTVOXp+IDXSC] + bwhtmat + y;	
-			pred[ii*TOTVOX+IDX] = dProbSDNormGPU(x);								
+			x = /*alpha[ii] + */ SpatCoef[ii*TOTVOXp+IDXSC] + bwhtmat + y;
+			pred[ii*TOTVOX+IDX] = dProbSDNormGPU(x);
 		}
-		
+
 		idx += stride;
 	}
 }
@@ -1815,11 +1815,11 @@ void compute_prbGPU(float beta)
 {
 	if (MODEL != 1) {
 		for (int i=0;i<2;i++)
-			ProbLogitGPU<<<(INDX[i].hostN+511)/512, 512 >>>(devicePrb,deviceAlphaMean,deviceSpatCoef,beta,deviceWM,deviceIdx,deviceIdxSC,INDX[i].deviceVox,TOTVOX,TOTVOXp,NSUBTYPES,INDX[i].hostN,logit_factor);		
+			ProbLogitGPU<<<(INDX[i].hostN+511)/512, 512 >>>(devicePrb,deviceAlphaMean,deviceSpatCoef,beta,deviceWM,deviceIdx,deviceIdxSC,INDX[i].deviceVox,TOTVOX,TOTVOXp,NSUBTYPES,INDX[i].hostN,logit_factor);
 	}
 	else {
 		for (int i=0;i<2;i++)
-			ProbSDNormGPU<<<(INDX[i].hostN+511)/512, 512 >>>(devicePrb,deviceAlphaMean,deviceSpatCoef,beta,deviceWM,deviceIdx,deviceIdxSC,INDX[i].deviceVox,TOTVOX,TOTVOXp,NSUBTYPES,INDX[i].hostN);		
+			ProbSDNormGPU<<<(INDX[i].hostN+511)/512, 512 >>>(devicePrb,deviceAlphaMean,deviceSpatCoef,beta,deviceWM,deviceIdx,deviceIdxSC,INDX[i].deviceVox,TOTVOX,TOTVOXp,NSUBTYPES,INDX[i].hostN);
 	}
 }
 
@@ -1831,7 +1831,7 @@ __global__ void reduce_for_Mpredict(float *in,float *out,unsigned char *data,con
 	float c = 0;
 	float y,t;
 	float temp = 0;
-	
+
 	while (ivox < N) {
 		int tmp = (int)data[ivox];
 		float inv = in[ivox];
@@ -1841,19 +1841,19 @@ __global__ void reduce_for_Mpredict(float *in,float *out,unsigned char *data,con
 		temp = t;
 		ivox += blockDim.x * gridDim.x;
 	}
-			
+
 	cache[cacheIndex] = temp;
-	
+
 	__syncthreads();
-	
+
 	int i = (blockDim.x >> 1);
 	while (i != 0) {
 		if (cacheIndex < i)
 			cache[cacheIndex] += cache[cacheIndex + i];
 		__syncthreads();
-		i = i >> 1;	
+		i = i >> 1;
 	}
-	
+
 	if (cacheIndex == 0)
 		out[blockIdx.x] = cache[0];
 }
@@ -1862,11 +1862,11 @@ double compute_predictGPU(float beta,unsigned char *data,unsigned char *msk,floa
 {
 	double *Mpredict,DIC;
 	float *hf_sum,*df_sum;
-	
+
 	Mpredict = (double *)calloc(NSUBTYPES,sizeof(double));
-	
+
 	CUDA_CALL( cudaMalloc((void **)&df_sum,BPG*sizeof(float)) );
-	hf_sum = (float *)calloc(BPG,sizeof(float));		
+	hf_sum = (float *)calloc(BPG,sizeof(float));
 
 	DIC = 0;
 	for (int isub=0;isub<NSUBS;isub++) {
@@ -1884,27 +1884,27 @@ double compute_predictGPU(float beta,unsigned char *data,unsigned char *msk,floa
 				NSUBTYPES,NCOVAR,NSUBS,NCOV_FIX,isub,INDX[i].hostN);
 			}
 		}
-		
+
 		//  Compute Bayes Factor
 /*		reduce<<<BPG, NN >>>(devicePredict,df_sum,NSUBTYPES*TOTVOX);
 
 		cudaMemcpy(hf_sum,df_sum,BPG*sizeof(float),cudaMemcpyDeviceToHost);
-	
+
 		for (int j=0;j<BPG;j++)
 			f += (double)hf_sum[j];*/
 		//  End Compute Bayes Factor
-		
-		//  Compute Prediction for each subtype	
+
+		//  Compute Prediction for each subtype
 		for (int ii=0;ii<NSUBTYPES;ii++) {
 			Mpredict[ii] = 0;
-			
+
 			reduce_for_Mpredict<<<BPG, NN >>>(&devicePredict[ii*TOTVOX],df_sum,&deviceData[isub*TOTVOX],TOTVOX);
 			CUDA_CALL( cudaMemcpy(hf_sum,df_sum,BPG*sizeof(float),cudaMemcpyDeviceToHost) );
-			
+
 			for (int j=0;j<BPG;j++)
 				Mpredict[ii] += (double)hf_sum[j];
 		}
-/*		cudaMemcpy(predict,devicePredict,NSUBTYPES*TOTVOX*sizeof(float),cudaMemcpyDeviceToHost);			
+/*		cudaMemcpy(predict,devicePredict,NSUBTYPES*TOTVOX*sizeof(float),cudaMemcpyDeviceToHost);
 
 		for (int i=0;i<NSUBTYPES;i++)
 			Mpredict[i] = 0;
@@ -1919,7 +1919,7 @@ double compute_predictGPU(float beta,unsigned char *data,unsigned char *msk,floa
 							else
 								Mpredict[ii] += log((1 - (double)predict[ii*TOTVOX+hostIdx[IDX]]) + DBL_MIN);
 						}
-					}						
+					}
 				}
 			}
 		}*/
@@ -1947,12 +1947,12 @@ double compute_predictGPU(float beta,unsigned char *data,unsigned char *msk,floa
 				Qhat[isub][i] = log(exp(Qhat[isub][i] - max) + exp((Mpredict[i] - Mpredict[subtype]) - max)) + max;
 			}
 		}
-	}	
-	
-	free(Mpredict);	
+	}
+
+	free(Mpredict);
     	CUDA_CALL( cudaFree(df_sum) );
 	free(hf_sum);
-	
+
 	return(DIC);
 }
 

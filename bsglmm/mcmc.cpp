@@ -40,6 +40,8 @@ extern int NSUBTYPES;
 extern int NCOVAR;
 extern int NCOV_FIX;
 extern int RESTART;
+extern int UPDATE_WM;
+
 extern int *hostIdx;
 extern int *deviceIdx;
 extern int *hostIdxSC;
@@ -124,7 +126,8 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 	double compute_prb_DIC(double *,double *,float *,unsigned char *,unsigned char *,int);
 
 //	void tmp(float *,float *);
-	fresid = fopen("resid.dat","w");
+
+//	fresid = fopen("resid.dat","w");
 
  	NSIZE = (NROW+2)*(NCOL+2)*(NDEPTH+2);
 	int RSIZE = NROW*NCOL*NDEPTH;
@@ -283,19 +286,20 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 
 		out  = fopen("parms.dat","a");
 		out2  = fopen("select_parms.dat","w");
-	}*/
+	}
 	//else {
 		out = fopen("parms.dat","w");
 		out2 = fopen("select_parms.dat","w");
 	//}
 	fBF = fopen("fBF.dat","w");
+*/
 
 	cudaEvent_t start, stop;
 	float time;
 	CUDA_CALL( cudaEventCreate(&start) );
 	CUDA_CALL( cudaEventCreate(&stop) );
 //cudaEventRecord(start,0);
-    
+
 	if ((MAXITER-BURNIN)<10000){
 	  SAVE_ITER = MAXITER-BURNIN;
 	}
@@ -337,12 +341,13 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 			if (!(iter%PRNtITER))
 				CUDA_CALL( cudaEventRecord(start, 0) );
 			//for (int tj=0;tj<10;tj++)
-			updateBetaGPU(&beta,deviceZ,devicePhi,deviceAlphaMean,deviceWM,prior_mean_beta,prior_prec_beta,deviceSpatCoef,deviceCovar,seed);
+			if (UPDATE_WM)
+			  updateBetaGPU(&beta,deviceZ,devicePhi,deviceAlphaMean,deviceWM,prior_mean_beta,prior_prec_beta,deviceSpatCoef,deviceCovar,seed);
 			if (!(iter%PRNtITER)) {
 				CUDA_CALL( cudaEventRecord(stop, 0) );
 				CUDA_CALL( cudaEventSynchronize(stop) );
 				CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
-				printf ("Time for the updateBetaGPU kernel: %f ms\n", time);
+				printf ("Time to updateBetaGPU kernel: %f ms\n", time);
 			}
 
 			if (!(iter%PRNtITER))
@@ -548,20 +553,28 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 					V[jj + ii*NCOVAR] = (double)SpatCoefPrec[jj + ii*NCOVAR];
 			cholesky_decomp(V, NCOVAR);
 			cholesky_invert(NCOVAR, V);
-			printf("iter = %d\t",iter);
-			printf("%f \n",beta);
+			printf("iter = %d\t\n",iter);
+			printf("  WM mask coefficient \n");
+            printf("\t %f \n\n",beta);
+
 			for (int ii=0;ii<NCOV_FIX;ii++)
 				printf("%f \n",fixMean[ii]);
+
+			printf("  overall mean and SD for groups \n");
 			for (int ii=0;ii<NSUBTYPES;ii++)
 				printf("\t %10.6lf %10.6f\n",alphaMean[ii]/logit_factor,sqrt(V[ii+ii*NCOVAR])/logit_factor);
 			printf("\n");
+
+			printf("  overall mean and SD for spatially varying coefficients for all covariates \n");
 			for (int ii=NSUBTYPES;ii<NCOVAR;ii++)
 				printf("\t %10.6lf %10.6f\n",alphaMean[ii]/logit_factor,sqrt(V[ii+ii*NCOVAR])/logit_factor);
 			printf("\n");
+
+			printf("  correlation matrix of regression parameters \n");
 			for (int ii=0;ii<NCOVAR;ii++) {
 				for (int jj=0;jj<=ii;jj++)
 //					printf("%6.3lf ",sqrt(V[jj + ii*NCOVAR]));
-					printf("%6.3lf ",V[jj + ii*NCOVAR]/sqrt(V[ii + ii*NCOVAR]*V[jj + jj*NCOVAR]));
+					printf("   %6.3lf ",V[jj + ii*NCOVAR]/sqrt(V[ii + ii*NCOVAR]*V[jj + jj*NCOVAR]));
 				printf("\n");
 			}
 			printf("\n");
@@ -651,7 +664,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 //			CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
 //			printf ("Time for the updateZGPU kernel: %f sec.\n", time/1000.0);
 
-	fclose(fBF);
+//	fclose(fBF);
 
 //	unsigned int *Resid;
 //	double *ResidMap;
@@ -678,7 +691,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 					if (msk[IDX]) {
 						double tmp = (double)Resid[isub*TOTVOX+hostIdx[IDX]]/(double)(MAXITER-BURNIN);
 						if (tmp > 0.05) {
-							fprintf(fresid,"%d %d %d %d %lf\n",isub,i,j,k,tmp);
+//							fprintf(fresid,"%d %d %d %d %lf\n",isub,i,j,k,tmp);
 							ResidMap[IDX2]++;
 						}
 					}
@@ -687,9 +700,9 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 		}
 	}
 	free(Resid);
-	fclose(out);
-	fclose(out2);
-	fclose(fresid);*/
+//	fclose(out);
+//	fclose(out2);
+//	fclose(fresid);*/
 
 	char *RR = (char *)calloc(500,sizeof(char));
 	S = (char *)calloc(100,sizeof(char));
@@ -813,12 +826,17 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 	}*/
 
 //	fclose(fWM);
-	S = strcpy(S,"bWM.nii");
-	rtn = write_nifti_file(NROW,NCOL,NDEPTH,1,S,S,MWM);
 
-	RR = strcpy(RR,"gzip -f ");
-	RR = strcat(RR,(const char *)S);
-	rtn = system(RR);
+    if (UPDATE_WM)
+    {
+        S = strcpy(S,"bWM.nii");
+        rtn = write_nifti_file(NROW,NCOL,NDEPTH,1,S,S,MWM);
+
+        RR = strcpy(RR,"gzip -f ");
+        RR = strcat(RR,(const char *)S);
+        rtn = system(RR);
+    }
+
 
 /*	for (int ii=0;ii<NSUBTYPES;ii++) {
 		for (int k=0;k<NDEPTH;k++) {
