@@ -44,7 +44,7 @@ int test_ext(const char *img_name,const char *ext)
         char *ptr;
         int Found=0;
 	
-	ptr = strstr(img_name,ext); 
+	ptr = (char *)strstr(img_name,ext); 
 	if (ptr!=NULL) {
 		if (ptr - img_name == strlen(img_name) - strlen(ext))
 			Found=1;
