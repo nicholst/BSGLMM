@@ -43,35 +43,35 @@ int test_ext(const char *img_name,const char *ext)
 {
         char *ptr;
         int Found=0;
-	
-	ptr = (char *)strstr(img_name,ext); 
+
+	ptr = (char *)strstr(img_name,ext);
 	if (ptr!=NULL) {
 		if (ptr - img_name == strlen(img_name) - strlen(ext))
 			Found=1;
 	}
-	
+
 	return(Found);
 }
 void nifti_basenm(const char *img_name,char *basenm)
 {
         char *ptr;
-	
+
 	strcpy(basenm,img_name);
-	ptr = strstr(basenm,".gz"); 
+	ptr = strstr(basenm,".gz");
 	if (ptr!=NULL)
 		*ptr=0;
-	
-	ptr = strstr(basenm,".nii"); 
+
+	ptr = strstr(basenm,".nii");
 	if (ptr!=NULL)
 		*ptr=0;
 	else {
-		ptr = strstr(basenm,".img"); 
+		ptr = strstr(basenm,".img");
 		if (ptr!=NULL)
 			*ptr=0;
 		else {
-			ptr = strstr(basenm,".hdr"); 
+			ptr = strstr(basenm,".hdr");
 			if (ptr!=NULL)
-				*ptr=0; 
+				*ptr=0;
 		}
 	}
 }
@@ -81,20 +81,36 @@ FILE *nifti_expand(const char *img_name,char *exp_name)
 	FILE *data;
 	int FileType=0;
 
-	if (test_ext(img_name,".nii.gz")) 
+	if (test_ext(img_name,".nii.gz"))
 		FileType=1;
-	if (test_ext(img_name,".nii")) 
+	if (test_ext(img_name,".nii"))
 		FileType=2;
 	if (FileType==0) {
 		printf("Image ('%s') is not single file NIFTI (.nii or .nii.gz)\n",img_name);
 		exit(1);
 	}
 	data=fopen(img_name,"r");
-	if (data==NULL) {
+
+	if (data==NULL && FileType==1) {            // case where .gz was specified as input but does not exist, try .nii
+        char alt_img_name[300];
+        FileType=2;
+        nifti_basenm(img_name,alt_img_name);
+        strcat(alt_img_name,".nii");
+        data=fopen(alt_img_name,"r");
+	}
+    else if (data==NULL && FileType==2) {       // case where .nii was specified as input but does not exist, try .nii.gz
+        char alt_img_name[300];
+        FileType=1;
+        nifti_basenm(img_name,alt_img_name);
+        strcat(alt_img_name,".nii.gz");
+        data=fopen(alt_img_name,"r");
+	}
+
+    if (data==NULL) {
 		printf("Cannot open '%s'\n",img_name);
 		exit(1);
 	}
-	
+
 	if (FileType==1) {
 		fclose(data);
 		nifti_basenm(img_name,exp_name);
@@ -103,7 +119,7 @@ FILE *nifti_expand(const char *img_name,char *exp_name)
 		char *RR = (char *)calloc(300,sizeof(char));
 
 		RR = strcpy(RR,"gunzip ");
-		RR = strcat(RR,(const char *)img_name);		
+		RR = strcat(RR,(const char *)img_name);
 		int rtn = system(RR);
 		if (rtn) {
 			printf("Error unzipping file '%s'\n",img_name);
@@ -141,7 +157,7 @@ void itoa(int n,char *s)
 {
 	int i,sign;
 	void reverse(char *s);
-	
+
 	if ((sign = n) < 0)
 		n = -n;
 	i = 0;
@@ -157,7 +173,7 @@ void itoa(int n,char *s)
 void reverse(char *s)
 {
 	int c,i,j;
-	
+
 	for (i=0,j = strlen(s)-1;i<j;i++,j--) {
 		c = s[i];
 		s[i] = s[j];
@@ -220,7 +236,7 @@ unsigned char *read_nifti1_mask(char *mask_name)
 			}
 		}
 	}
-	
+
 	free(mask_name_exp);
 	free(basenm);
 	free(image);
@@ -265,7 +281,7 @@ unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 		img_list[i] = (char *)calloc(500,sizeof(char));
 
 	rewind(demo);
-	
+
 	subtype_cnt = 0;
 	for (i=0;i<(NCOVAR+2);i++) {
 		rtn = fscanf(demo,"%s ",S);
@@ -322,7 +338,7 @@ unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 	img_nm_exp = (char *)calloc(500,sizeof(char));
 	for (int isub=0;isub<NSUBS;isub++) {
 
-		strcpy(img_nm,img_list[isub]);		
+		strcpy(img_nm,img_list[isub]);
 		fprintf(stderr,".",img_nm);
 		data = nifti_expand(img_nm,img_nm_exp);
 
@@ -340,7 +356,7 @@ unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 				printf("\nError reading volume 1 from %s (%d)\n",img_list[isub],ret);
 				free(imagef);
 				exit(0);
-			}	
+			}
 		}
 		if (nifti_head->datatype == NIFTI_TYPE_FLOAT64) {
 			imaged = (double *)malloc(nifti_head->dim[1]*nifti_head->dim[2]*nifti_head->dim[3] * sizeof(double));
@@ -353,7 +369,7 @@ unsigned char *read_nifti1_image(unsigned char *msk,char *file_name)
 		}
 		fclose(data);
 		nifti_compress(img_nm,img_nm_exp);
-		int idx2; 
+		int idx2;
 		int cnt2=0;
 		cnt = 0;
 
@@ -405,7 +421,7 @@ void write_empir_prb(unsigned char *msk,float *covar,unsigned char *data,int *ho
 	char *S,*RR;
 	double *sum,N,*sum2,N2;
 	FILE *fout;
-	
+
 	int write_nifti_file(int NROW,int NCOL,int NDEPTH,int NTIME,char *hdr_file,char *data_file,MY_DATATYPE *data);
 
 	S = (char *)calloc(100,sizeof(char));
@@ -414,7 +430,7 @@ void write_empir_prb(unsigned char *msk,float *covar,unsigned char *data,int *ho
 	sum = (double *)calloc(NROW*NCOL*NDEPTH,sizeof(double));
 	sum2 = (double *)calloc(NROW*NCOL*NDEPTH,sizeof(double));
 	for (int ii=0;ii<NSUBTYPES;ii++) {
-	
+
 		int cnt = 0;
 		for (int k=1;k<NDEPTH+1;k++) {
 			for (int j=1;j<NCOL+1;j++) {
@@ -461,7 +477,7 @@ void write_empir_prb(unsigned char *msk,float *covar,unsigned char *data,int *ho
 	RR = strcpy(RR,"gzip -f ");
 	RR = strcat(RR,(const char *)S);
 	rtn = system(RR);
-	
+
 	free(sum2);
 	free(sum);
 	free(S);
@@ -480,7 +496,7 @@ float *read_nifti1_WM(const char *WM_name,const unsigned char *msk)
 	if (UPDATE_WM) {
 		char *WM_name_exp = (char *)calloc(300,sizeof(char));
 		data = nifti_expand(WM_name,WM_name_exp);
-		
+
 		nifti_head = (struct nifti_1_header *)malloc(352);
 		rtn = fread(nifti_head,352,1,data);
 		if (!(nifti_head->datatype == NIFTI_TYPE_UINT8)) {
@@ -496,7 +512,7 @@ float *read_nifti1_WM(const char *WM_name,const unsigned char *msk)
 				free(image);
 				exit(0);
 			}
-			
+
 		}
 		fclose(data);
 		nifti_compress(WM_name,WM_name_exp);
@@ -509,7 +525,7 @@ float *read_nifti1_WM(const char *WM_name,const unsigned char *msk)
 		for(j=1; j<NCOL+1; j++) {
 			for(i=1;i<NROW+1; i++) {
 				idx = i + (NROW+2)*j + (NROW+2)*(NCOL+2)*k;
-				if (msk[idx]) { 
+				if (msk[idx]) {
 					if (UPDATE_WM)
 						WM[cnt] = (float)(*(image+t))/255.0f;
 					else
@@ -522,7 +538,7 @@ float *read_nifti1_WM(const char *WM_name,const unsigned char *msk)
 	}
 	if (UPDATE_WM)
 		free(image);
-	
+
 	return WM;
 }
 
@@ -544,7 +560,7 @@ float *read_covariates(char *file_name)
 	char *S,*T,*U;
 	float *covar,x[NCOVAR];
 	FILE *demo;
-	
+
 	grp_prior = (double *)calloc(NSUBTYPES,sizeof(double));
 	covar = (float *)calloc(NCOVAR*NSUBS,sizeof(float));
 	if (GPU) {
@@ -592,12 +608,12 @@ float *read_covariates(char *file_name)
 //	while (fscanf(demo,"%d %f %f %f %f %f %s\n",&i,&x[0],&x[1],&x[2],&x[3],&x[4],S) != EOF) {
 	while (fscanf(demo,"%d %f %f %f %f %f %f %f %f %f %f %f %s\n",&i,&x[0],&x[1],&x[2],&x[3],&x[4],&x[5],&x[6],&x[7],&x[8],&x[9],&x[10],S) != EOF) {
 //	while (fscanf(demo,"%d %s %f %f %f %f %f %f %f %f %f %f %f %s\n",&i,&x[0],&x[1],&x[2],&x[3],&x[4],&x[5],&x[6],&x[7],&x[8],&x[9],&x[10],&x[11],S) != EOF) {
-	
+
 //		if (!strcmp(S,"CIS"))
 			sub_cnt++;
 	}
 	fclose(demo);
-	demo = fopen(file_name,"r"); 
+	demo = fopen(file_name,"r");
 	for (i=0;i<NCOVAR-NSUBTYPES+2;i++) {
 		rtn = fscanf(demo,"%s ",S);
 	}
@@ -605,7 +621,7 @@ float *read_covariates(char *file_name)
 	float mean[NCOVAR];
 	for (int i=0;i<NCOVAR;i++)
 		mean[i] = 0;
-	
+
 	char **typelist;
 	typelist = (char **)calloc(NSUBTYPES,sizeof(char *));
 	for (int i=0;i<NSUBTYPES;i++)
@@ -655,7 +671,7 @@ float *read_covariates(char *file_name)
 //					mean[ii] += covar[ii*NSUBS+sub_cnt];
 				}
 				sub_cnt++;
-	
+
 //			}
 //		}
 	}
@@ -668,7 +684,7 @@ float *read_covariates(char *file_name)
 		printf("Proportion of Subjects of MS subtype %s = %lf\n",typelist[i],grp_prior[i]);
 	}
 //printf("OK-2\n");fflush(NULL);
-	for (int i=0;i<NSUBTYPES;i++) 
+	for (int i=0;i<NSUBTYPES;i++)
 		free(typelist[i]);
 	free(typelist);
 
@@ -708,17 +724,17 @@ float *read_covariates(char *file_name)
 		for (int i=2;i<NCOVAR-NSUBTYPES;i++) {
 			covar[isub*NCOVAR + (NSUBTYPES+i)] += 1;
 		}
-	}*/	
-	
+	}*/
+
 	free(S);
 	free(T);
 	fclose(demo);
-	
+
 /*for (int isub=0;isub<NSUBS;isub++) {
 		for (int icov=0;icov<NCOVAR;icov++)
 			printf("%f ",covar[icov*NSUBS+isub]);
 		printf("\n");
-	}	
+	}
 exit(0);*/
 //printf("hmm\n");fflush(NULL);
 	if (GPU) {
@@ -736,7 +752,7 @@ float *read_covariates_fix()
 	char *S,*T,*U;
 	float *covar,x[10];
 	FILE *demo;
-	
+
 	covar = (float *)calloc(NCOV_FIX*NSUBS,sizeof(float));
 	if (GPU) {
 //		cudaHostAlloc((void **)&covar, NCOV_FIX*NSUBS*sizeof(float),cudaHostAllocDefault);
@@ -769,10 +785,10 @@ float *read_covariates_fix()
 	float mean[NCOV_FIX];
 	for (int i=0;i<NCOV_FIX;i++)
 		mean[i] = 0;
-	
+
 	sub_cnt = 0;
 
-	
+
 	while (fscanf(demo,"%d %f\n",&i,&x[0]) != EOF) {
 		for (int ii=0;ii<NCOV_FIX;ii++) {
 			covar[sub_cnt*NCOV_FIX + ii] = x[ii];
@@ -789,7 +805,7 @@ float *read_covariates_fix()
 			if (covar[isub*NCOV_FIX + i] == 0) covar[isub*NCOV_FIX + i] = 0.001;
 		}
 	}
-	
+
 
 	XXprime_Fix = (float *)calloc(NCOV_FIX*NCOV_FIX,sizeof(float));
 	for (int isub=0;isub<NSUBS;isub++) {
@@ -797,11 +813,11 @@ float *read_covariates_fix()
 			for (int j=0;j<NCOV_FIX;j++)
 				XXprime_Fix[j+i*NCOV_FIX] += covar[isub*NCOV_FIX + i]*covar[isub*NCOV_FIX + j];
 	}
-	
+
 	free(S);
 	free(T);
 	fclose(demo);
-	
+
 /*	for (int isub=0;isub<NSUBS;isub++) {
 		for (int icov=0;icov<NCOV_FIX;icov++)
 			printf("%f ",covar[isub*NCOV_FIX+icov]);
