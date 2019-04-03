@@ -98,7 +98,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 	void initializeAlpha(unsigned char *,float *,float *,float *,unsigned long *);
 	void initializeZ(float *,unsigned char *,unsigned char *,unsigned long *);
 	void initializePhi(float *,unsigned char *,unsigned char *,float,unsigned long *);
-	void updateZGPU(unsigned char *,float,unsigned long *);
+	void updateZGPU(unsigned char *,float,float *,unsigned long *);
 	void updateZ(float *,float *,unsigned char *,unsigned char *,float, float *,float *,float *,unsigned long *);
 	void updatePhiGPU(float,float *);
 	void updatePhi(unsigned char *data,float *Z,float *Phi,unsigned char *msk,float beta,float *WM,float *spatCoef,float *covar,unsigned long *seed);
@@ -170,21 +170,25 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 
 	subj = (SUB *)calloc(NSUBS,sizeof(SUB));
 
-	Z = (float *)calloc(TOTVOX*NSUBS,sizeof(float));
-	Phi = (float *)calloc(TOTVOX*NSUBS,sizeof(float));
 	if (GPU) {
-	//	CUDA_CALL( cudaHostAlloc((void **)&Z, TOTVOX*NSUBS*sizeof(float),cudaHostAllocDefault) );
+		CUDA_CALL( cudaMalloc((void **)&devicePhi,TOTVOX*NSUBS*sizeof(float)) );
+		CUDA_CALL( cudaMemset(devicePhi,0,TOTVOX*NSUBS*sizeof(float)) );
+		CUDA_CALL( cudaHostAlloc((void **)&Z, TOTVOX*NSUBS*sizeof(float),cudaHostAllocDefault) );
 		CUDA_CALL( cudaMalloc((void **)&deviceZ,TOTVOX*NSUBS*sizeof(float)) );
 		CUDA_CALL( cudaMemset(deviceZ,0,TOTVOX*NSUBS*sizeof(float)) );
-	//	CUDA_CALL( cudaHostAlloc((void **)&Phi, TOTVOX*NSUBS*sizeof(float),cudaHostAllocDefault) );
-//		CUDA_CALL( cudaMalloc((void **)&devicePhi,TOTVOX*NSUBS*sizeof(float)) );
-//		CUDA_CALL( cudaMemset(devicePhi,1,TOTVOX*NSUBS*sizeof(float)) );
+		CUDA_CALL( cudaHostAlloc((void **)&Phi, TOTVOX*NSUBS*sizeof(float),cudaHostAllocDefault) );
+        for (int i=0;i<TOTVOX*NSUBS;i++)
+            Phi[i] = 1;
+  		CUDA_CALL( cudaMemcpy(devicePhi,Phi,NSUBS*TOTVOX*sizeof(float),cudaMemcpyHostToDevice) );
+      
 //		CUDA_CALL( cudaMalloc((void **)&deviceResid,TOTVOX*NSUBS*sizeof(unsigned int)) );
 //		CUDA_CALL( cudaMemset(deviceResid,0,TOTVOX*NSUBS*sizeof(unsigned int)) );
 	}
-//	else
-//		Z = (float *)calloc(TOTVOX*NSUBS,sizeof(float));
-
+	else {
+		Z = (float *)calloc(TOTVOX*NSUBS,sizeof(float));
+    	Phi = (float *)calloc(TOTVOX*NSUBS,sizeof(float));
+    }
+    
 /*	if (!RESTART) {
 		initializeZ(Z,data,msk,seed);
 //		initializePhi(Phi,data,msk,t_df,seed);
@@ -315,16 +319,18 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 			if (!(iter%PRNtITER))
 				CUDA_CALL( cudaEventRecord(start, 0) );
 			//for (int tj=0;tj<10;tj++)
-			updateZGPU(data,beta,seed);
-
+			updateZGPU(data,beta,devicePhi,seed);
+//printf("here\n");fflush(NULL);
 			if (!(iter%PRNtITER)) {
 				CUDA_CALL( cudaEventRecord(stop, 0) );
+//				printf("here\n");fflush(NULL);
 				CUDA_CALL( cudaEventSynchronize(stop) );
+//				printf("here\n");fflush(NULL);
 				CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
 				printf ("Time to updateZGPU kernel: %f ms\n", time);
 			}
 
-			if (MODEL != 1) {
+	/*		if (MODEL != 1) {
 				if (!(iter%PRNtITER))
 					CUDA_CALL( cudaEventRecord(start, 0) );
 				//for (int tj=0;tj<10;tj++)
@@ -336,7 +342,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 					CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
 					printf ("Time to updatePhiGPU kernel: %f ms\n", time);
 				}
-			}
+			}*/
 
 			if (!(iter%PRNtITER))
 				CUDA_CALL( cudaEventRecord(start, 0) );
@@ -360,7 +366,6 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 				CUDA_CALL( cudaEventElapsedTime(&time, start, stop) );
 				printf ("Time to updateSpatCoefGPU kernel: %f ms\n", time);
 			}
-
 			if (!(iter%PRNtITER))
 				CUDA_CALL( cudaEventRecord(start, 0) );
 			//for (int tj=0;tj<10;tj++)
@@ -590,38 +595,38 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 					FIRST = 1;
 				else
 					FIRST = 0;
-				if (!(iter%PRNtITER))
-					cudaEventRecord(start, 0);
+/*				if (!(iter%PRNtITER))
+					cudaEventRecord(start, 0);*/
 				ED += compute_predictGPU(beta,data,msk,covar,predict,Qhat,FIRST);
-				if (!(iter%PRNtITER)) {
+/*				if (!(iter%PRNtITER)) {
 					cudaEventRecord(stop, 0);
 					cudaEventSynchronize(stop);
 					cudaEventElapsedTime(&time, start, stop);
 					printf ("Time to compute_predictGPU: %f ms\n", time);
-				}
+				}*/
 
-				if (!(iter%PRNtITER))
-					cudaEventRecord(start, 0);
+/*				if (!(iter%PRNtITER))
+					cudaEventRecord(start, 0);*/
 				compute_prbGPU(beta);
 				CUDA_CALL( cudaMemcpy(spatCoef,deviceSpatCoef,NCOVAR*TOTVOXp*sizeof(float),cudaMemcpyDeviceToHost) );
 				CUDA_CALL( cudaMemcpy(prb,devicePrb,NSUBTYPES*TOTVOX*sizeof(float),cudaMemcpyDeviceToHost) );
-				if (!(iter%PRNtITER)) {
+/*				if (!(iter%PRNtITER)) {
 					cudaEventRecord(stop, 0);
 					cudaEventSynchronize(stop);
 					cudaEventElapsedTime(&time, start, stop);
 					printf ("Time to compute_prbGPU: %f ms\n\n", time);
-				}
+				}*/
 			}
 			else {
-				if (!(iter%PRNtITER))
-					cudaEventRecord(start, 0);
+/*				if (!(iter%PRNtITER))
+					cudaEventRecord(start, 0);*/
 				compute_prb(prb,alpha,spatCoef,beta,WM,msk);
-				if (!(iter%PRNtITER)) {
+/*				if (!(iter%PRNtITER)) {
 					cudaEventRecord(stop, 0);
 					cudaEventSynchronize(stop);
 					cudaEventElapsedTime(&time, start, stop);
 					printf ("Time to compute_prbGPU: %f ms\n\n", time);
-				}
+				}*/
 			}
 
 			for (int k=1;k<NDEPTH+1;k++) {
@@ -672,7 +677,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 //	ResidMap = (double *)calloc(RSIZE,sizeof(double));
 	if (GPU) {
 		CUDA_CALL( cudaMemcpy(Z,deviceZ,NSUBS*TOTVOX*sizeof(float),cudaMemcpyDeviceToHost) );
-//		CUDA_CALL( cudaMemcpy(Phi,devicePhi,NSUBS*TOTVOX*sizeof(float),cudaMemcpyDeviceToHost) );
+		CUDA_CALL( cudaMemcpy(Phi,devicePhi,NSUBS*TOTVOX*sizeof(float),cudaMemcpyDeviceToHost) );
 //		cudaMemcpy(alpha,deviceAlpha,NSUBTYPES*TOTVOX*sizeof(float),cudaMemcpyDeviceToHost);
 		CUDA_CALL( cudaMemcpy(spatCoef,deviceSpatCoef,NCOVAR*TOTVOXp*sizeof(float),cudaMemcpyDeviceToHost) );
 
@@ -982,16 +987,20 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 
 	free(MCov);
 	free(SCov);
-
 	free(MWM);
-
 
 	if (GPU) {
 		CUDA_CALL( cudaFree(deviceData) );
 		CUDA_CALL( cudaFree(deviceZ) );
 		CUDA_CALL( cudaFree(devicePrb) );
 		CUDA_CALL( cudaFree(devicePredict) );
-//		CUDA_CALL( cudaFree(devicePhi) );
+		CUDA_CALL( cudaFree(devicePhi) );
+	    CUDA_CALL( cudaFreeHost(Z) );
+	    CUDA_CALL( cudaFreeHost(Phi) );
+	}
+	else {
+	    free(Z);
+	    free(Phi);
 	}
 	free(prb);
 	free(predict);
@@ -999,10 +1008,7 @@ void mcmc(float *covar,float *covar_fix,unsigned char *data,float *WM,unsigned c
 	free(SpatCoefMean);
 	free(SpatCoefPrec);
 	free(Mprb);
-	free(Z);
-	free(Phi);
 	free(alpha);
-
 }
 
 

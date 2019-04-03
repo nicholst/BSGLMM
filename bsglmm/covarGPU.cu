@@ -429,7 +429,7 @@ __global__ void Spat_Coef(float *covar,float *covF,float *fix,float *alpha,float
 		}
 		for (int ii=0;ii<NCOV_FIX;ii++)
 			fixed[ii] =  fix[ii];
-//	}
+	}
 
 	for (int isub = 0; isub < NSUBS; isub += localsize ) {
 		if ((isub+localsize) > NSUBS)
@@ -467,7 +467,7 @@ __global__ void Spat_Coef(float *covar,float *covF,float *fix,float *alpha,float
 		__syncthreads();
 	}
 
-//	if (idx < N) {
+	if (idx < N) {
 		localState = state[idx];
 		for (current_covar=0;current_covar<NCOVAR;current_covar++) {
 			sumV[current_covar]  = SpatCoef[(current_covar*TOTVOXp+dIdxSC[voxel-1])]
@@ -695,7 +695,8 @@ void updateBetaGPU(float *beta,float *dZ,float *dPhi,float *dalpha,float *dWM,fl
 
 	mean = var = 0;
 	for (int i=0;i<2;i++) {
-		betaMGPU<<<BPG,NN>>>(dcovar,deviceCov_Fix,dZ,dspatCoef,deviceFixMean,deviceAlphaMean,deviceWM,INDX[i].hostN,TOTVOXp,NSUBS,NSUBTYPES,NCOVAR,NCOV_FIX,TOTVOX,INDX[i].deviceVox,dmean,deviceIdx,deviceIdxSC);
+        betaMGPU<<<BPG,NN>>>(dcovar,deviceCov_Fix,dZ,dspatCoef,deviceFixMean,deviceAlphaMean,deviceWM,INDX[i].hostN,TOTVOXp,
+                             NSUBS,NSUBTYPES,NCOVAR,NCOV_FIX,TOTVOX,INDX[i].deviceVox,dmean,deviceIdx,deviceIdxSC);
 		cudaMemcpy(hmean,dmean,BPG*sizeof(float),cudaMemcpyDeviceToHost);
 
 		for (int j=0;j<BPG;j++)
@@ -1427,7 +1428,7 @@ __global__ void Z_GPU1(float *dZ,unsigned char *data,float *covar,float *covarF,
 	}
 }
 
-__global__ void Z_GPU2(float *dZ,unsigned char *data,float *covar,float *covarF,float *fix,float *alpha,float *WM,float *SpatCoef,const float beta,int *vox,const int NSUBS,const int NSUBTYPES,const int NCOVAR,const int NCOV_FIX,const int N,const int TOTVOXp,const int TOTVOX,curandState *state,int *dIdx,int *dIdxSC,const float sqrt2,float *dPhi,unsigned int *dR,const float alp,const float df)
+__global__ void Z_GPU2(float *dZ,float *dPhi,unsigned char *data,float *covar,float *covarF,float *fix,float *alpha,float *WM,float *SpatCoef,const float beta,int *vox,const int NSUBS,const int NSUBTYPES,const int NCOVAR,const int NCOV_FIX,const int N,const int TOTVOXp,const int TOTVOX,curandState *state,int *dIdx,int *dIdxSC,const float sqrt2,unsigned int *dR,const float alp,const float df)
 {
 	extern __shared__ float shared[];
 	int idx = threadIdx.x + blockIdx.x * blockDim.x;
@@ -1488,7 +1489,7 @@ __global__ void Z_GPU2(float *dZ,unsigned char *data,float *covar,float *covarF,
 
 			int itmp = (int)data[isub*TOTVOX+IDX];
 			Z = truncNormGPU(M,P,lim[itmp].x,lim[itmp].y,&localState);
-//			Z = ((float)data[isub*TOTVOX+IDX]-1.0f)*truncNormGPU(fabsf(M),rsqrtf(P),0.0f,500.0f,&localState);
+//			Z = ((float)data[isub*TOTVOX+IDX]-1.0f)*truncNormGPU(fabsf(M),rsqrt(1.0f),0.0f,500.0f,&localState);
 //			dR[isub*TOTVOX+IDX] += (fabsf(Z - M) > 4.0f);
 
 			b = Z - M;
@@ -1543,8 +1544,8 @@ __global__ void Phi_GPU(float *dZ,unsigned char *data,float *covar,float *covarF
 			beta2[isub+j] = tmp;
 			for (int ii=0;ii<NCOVAR;ii++)
 				beta2[isub+j] += SC[ii]*shared[j + ii*localsize];
-//			for (int ii=0;ii<NCOV_FIX;ii++)
-//				beta2[isub+j] -= fix[ii]*covarF[(isub+j)*NCOV_FIX + ii];
+			for (int ii=0;ii<NCOV_FIX;ii++)
+				beta2[isub+j] += fix[ii]*covarF[(isub+j)*NCOV_FIX + ii];
 		}
 		__syncthreads();
 	}
@@ -1622,7 +1623,7 @@ void updatePhi(unsigned char *data,float *Z,float *Phi,unsigned char *msk,float 
 	printf("beta2_max = %lf %lf %lf\t %lf %d\n",mx,mZ,mtmp,mZ2,(int)d);fflush(NULL);
 }
 
-void updateZGPU(unsigned char *data,float beta,unsigned long *seed)
+void updateZGPU(unsigned char *data,float beta,float *dPhi,unsigned long *seed)
 {
 	float alpha = (t_df + 1)/2;
 	float sqrt2 = sqrtf(2);
@@ -1643,10 +1644,11 @@ void updateZGPU(unsigned char *data,float beta,unsigned long *seed)
 			int thr_per_block = TPB2;
 			int shared_memory = (NCOVAR * thr_per_block) * sizeof(float);
 			int blck_per_grid = (INDX[i].hostN+thr_per_block-1)/thr_per_block;
-
-			Z_GPU2<<<blck_per_grid,thr_per_block,shared_memory>>>(deviceZ,deviceData,deviceCovar,deviceCov_Fix,deviceFixMean,deviceAlphaMean,
+//printf("1\n");fflush(NULL);
+			Z_GPU2<<<blck_per_grid,thr_per_block,shared_memory>>>(deviceZ,dPhi,deviceData,deviceCovar,deviceCov_Fix,deviceFixMean,deviceAlphaMean,
 			deviceWM,deviceSpatCoef,beta,INDX[i].deviceVox,NSUBS,NSUBTYPES,NCOVAR,NCOV_FIX,
-			INDX[i].hostN,TOTVOXp,TOTVOX,devStates,deviceIdx,deviceIdxSC,sqrt2,devicePhi,deviceResid,alpha,t_df);
+			INDX[i].hostN,TOTVOXp,TOTVOX,devStates,deviceIdx,deviceIdxSC,sqrt2,deviceResid,alpha,t_df);
+//printf("2\n");fflush(NULL);
 			if ((err = cudaGetLastError()) != cudaSuccess) {printf("Error %s %s\n",cudaGetErrorString(err)," in Z_GPU2");exit(0);}
 		}
 //		free(rchisq);
@@ -1666,6 +1668,7 @@ void updateZGPU(unsigned char *data,float beta,unsigned long *seed)
 
 		}
 	}
+//	printf("3\n");fflush(NULL);
 }
 
 
