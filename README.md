@@ -3,4 +3,4 @@ BSGLMM
 
 Bayesian Spatial Generalised Linear Mixed Model
 
-Please see http://warwick.ac.uk/tenichols/BSGLMM
+Please see http://nisox.org/Software/BSGLMM
