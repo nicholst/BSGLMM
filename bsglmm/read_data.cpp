@@ -41,10 +41,12 @@ char **SS;
 
 int test_ext(const char *img_name,const char *ext)
 {
-        char *ptr;
-        int Found=0;
+    char *ptr;
+    int Found=0;
+    char *img_name2 = strdup(img_name);
+    char *ext = strdup(ext);
 
-	ptr = (char *)strstr(img_name,ext);
+	ptr = (char *)strstr(img_name2,ext2);
 	if (ptr!=NULL) {
 		if (ptr - img_name == strlen(img_name) - strlen(ext))
 			Found=1;
@@ -54,7 +56,7 @@ int test_ext(const char *img_name,const char *ext)
 }
 void nifti_basenm(const char *img_name,char *basenm)
 {
-        char *ptr;
+    char *ptr;
 
 	strcpy(basenm,img_name);
 	ptr = strstr(basenm,".gz");
